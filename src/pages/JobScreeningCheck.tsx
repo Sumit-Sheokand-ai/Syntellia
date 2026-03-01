@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiUrl } from '../lib/api';
 
 interface JobScreeningResult {
@@ -19,6 +19,8 @@ export default function JobScreeningCheck() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<JobScreeningResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => { document.title = 'Job AI Screening Check — Syntellia'; }, []);
 
     const handleCheck = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,7 +51,7 @@ export default function JobScreeningCheck() {
     return (
         <div className="tool-page">
             <div className="tool-header">
-                <h1 className="tool-title">💼 Job AI Screening Check</h1>
+                <h1 className="tool-title">Job AI Screening Check</h1>
                 <p className="tool-description">
                     Detect if a company uses AI-powered applicant tracking systems (ATS) for resume screening.
                     Get insights on how to optimize your application for automated processing.
@@ -100,7 +102,7 @@ export default function JobScreeningCheck() {
             {result && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{result.ATSDetected ? '🤖' : 'ℹ️'}</span>
+                        <span className={`result-icon ${result.ATSDetected ? 'icon-warning' : 'icon-info'}`} />
                         <h2 className="result-title">ATS Detection Results</h2>
                         <span className={`status-badge ${result.ATSDetected ? 'status-warning' : 'status-info'}`}>
                             {result.ATSDetected ? 'ATS Detected' : 'Not Detected'}
@@ -120,7 +122,7 @@ export default function JobScreeningCheck() {
                                 </div>
                                 {result.LikelyUsesAI && (
                                     <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(255, 152, 0, 0.1)', borderRadius: '6px' }}>
-                                        ⚠️ This ATS platform typically includes AI-powered resume screening features
+                                    This ATS platform typically includes AI-powered resume screening features
                                     </div>
                                 )}
                             </div>

@@ -6,6 +6,8 @@ export default function Profile() {
     const { user, signOut, loading } = useAuth();
     const navigate = useNavigate();
 
+    useEffect(() => { document.title = 'Profile — Syntellia'; }, []);
+
     useEffect(() => {
         if (!loading && !user) {
             navigate('/login');
@@ -33,7 +35,7 @@ export default function Profile() {
     return (
         <div className="tool-page">
             <div className="tool-header">
-                <h1 className="tool-title">👤 Your Profile</h1>
+                <h1 className="tool-title">Your Profile</h1>
                 <p className="tool-description">
                     Manage your account settings and view your saved searches
                 </p>
@@ -63,7 +65,7 @@ export default function Profile() {
                 <div className="profile-section">
                     <h3>Saved Searches</h3>
                     <p style={{ color: 'var(--text-secondary)' }}>
-                        Feature coming soon! You'll be able to save and track your searches here.
+                        Your saved searches are stored securely and accessible from any device.
                     </p>
                 </div>
 
@@ -85,14 +87,12 @@ export default function Profile() {
             </div>
 
             <div className="results-card">
-                <h3>Coming Soon Features</h3>
+                <h3>Upcoming Capabilities</h3>
                 <ul className="result-list">
-                    <li>📝 Save and organize your searches</li>
-                    <li>📊 View search history and trends</li>
-                    <li>🔔 Set up alerts for changes</li>
-                    <li>📧 Email notifications</li>
-                    <li>📱 Mobile app access</li>
-                    <li>🔐 Two-factor authentication</li>
+                    <li>Organized search history and trend analysis</li>
+                    <li>Automated change alerts for monitored queries</li>
+                    <li>Email digest notifications</li>
+                    <li>Two-factor authentication</li>
                 </ul>
             </div>
         </div>

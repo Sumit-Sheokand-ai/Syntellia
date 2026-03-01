@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiUrl } from '../lib/api';
 
 interface UrlCheckResult {
@@ -39,6 +39,8 @@ export default function FaceDatasetCheck() {
     const [urlResult, setUrlResult] = useState<UrlCheckResult | null>(null);
     const [uploadResult, setUploadResult] = useState<UploadCheckResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => { document.title = 'Face Dataset Check — Syntellia'; }, []);
 
     const handleUrlCheck = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -106,7 +108,7 @@ export default function FaceDatasetCheck() {
     return (
         <div className="tool-page">
             <div className="tool-header">
-                <h1 className="tool-title">📸 Face Dataset Check</h1>
+                <h1 className="tool-title">Face Dataset Check</h1>
                 <p className="tool-description">
                     Check if your photo appears in AI training datasets like LAION-5B. Search by URL or
                     upload an image for visual similarity matching using CLIP embeddings.
@@ -190,7 +192,7 @@ export default function FaceDatasetCheck() {
             {urlResult && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{urlResult.Found ? '⚠️' : '✅'}</span>
+                        <span className={`result-icon ${urlResult.Found ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">URL Check Results</h2>
                         <span className={`status-badge ${urlResult.Found ? 'status-danger' : 'status-success'}`}>
                             {urlResult.Found ? 'Found in Dataset' : 'Not Found'}
@@ -253,7 +255,7 @@ export default function FaceDatasetCheck() {
             {uploadResult && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{uploadResult.Found ? '⚠️' : '✅'}</span>
+                        <span className={`result-icon ${uploadResult.Found ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">Visual Similarity Results</h2>
                         <span className={`status-badge ${uploadResult.Found ? 'status-warning' : 'status-success'}`}>
                             {uploadResult.Found ? 'Similar Images Found' : 'No Matches'}

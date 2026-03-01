@@ -61,6 +61,7 @@ const capabilityPillars = [
 
 export default function Home() {
     useEffect(() => {
+        document.title = 'Syntellia — Privacy Intelligence Suite';
         document.body.classList.add('home-premium-page');
         return () => {
             document.body.classList.remove('home-premium-page');

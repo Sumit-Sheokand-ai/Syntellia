@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 
@@ -11,6 +11,8 @@ export default function Signup() {
     const [success, setSuccess] = useState(false);
     const { signUp, signInWithGoogle, signInWithGithub } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => { document.title = 'Create Account — Syntellia'; }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

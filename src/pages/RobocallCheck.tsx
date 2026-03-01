@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiUrl } from '../lib/api';
 
 interface RobocallResult {
@@ -20,6 +20,8 @@ export default function RobocallCheck() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<RobocallResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => { document.title = 'Robocall Spoofing Check — Syntellia'; }, []);
 
     const handleCheck = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -43,7 +45,7 @@ export default function RobocallCheck() {
     return (
         <div className="tool-page">
             <div className="tool-header">
-                <h1 className="tool-title">📞 Robocall Spoofing Check</h1>
+                <h1 className="tool-title">Robocall Spoofing Check</h1>
                 <p className="tool-description">
                     Check if your phone number has been reported as the source of unwanted robocalls.
                     Data from FCC Consumer Complaints database—if complaints exist, your number was likely spoofed.
@@ -84,7 +86,7 @@ export default function RobocallCheck() {
             {result && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{result.Spoofed ? '⚠️' : '✅'}</span>
+                        <span className={`result-icon ${result.Spoofed ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">Complaint Analysis</h2>
                         <span className={`status-badge ${result.Spoofed ? 'status-danger' : 'status-success'}`}>
                             {result.Spoofed ? 'Complaints Found' : 'No Complaints'}

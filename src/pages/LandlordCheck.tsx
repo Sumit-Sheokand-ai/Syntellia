@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiUrl } from '../lib/api';
 
 interface LandlordResult {
@@ -27,6 +27,8 @@ export default function LandlordCheck() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<LandlordResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => { document.title = 'Landlord Record Check — Syntellia'; }, []);
 
     const handleCheck = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -61,7 +63,7 @@ export default function LandlordCheck() {
     return (
         <div className="tool-page">
             <div className="tool-header">
-                <h1 className="tool-title">🏠 Landlord Court Record Check</h1>
+                <h1 className="tool-title">Landlord Court Record Check</h1>
                 <p className="tool-description">
                     Search housing court records for violations and litigation. Check if your landlord has a
                     history of housing code violations or has been taken to court by tenants.
@@ -117,7 +119,7 @@ export default function LandlordCheck() {
             {result && result.SupportedCities && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">ℹ️</span>
+                        <span className="result-icon icon-info" />
                         <h2 className="result-title">Limited Coverage</h2>
                         <span className="status-badge status-info">NYC Only</span>
                     </div>
@@ -136,7 +138,7 @@ export default function LandlordCheck() {
             {result && !result.SupportedCities && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{result.Found ? '⚠️' : '✅'}</span>
+                        <span className={`result-icon ${result.Found ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">Housing Record Search</h2>
                         <span className={`status-badge ${result.Found ? 'status-danger' : 'status-success'}`}>
                             {result.Found ? 'Records Found' : 'No Records'}
