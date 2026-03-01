@@ -13,7 +13,7 @@ function Stars() {
         positions[i * 3 + 2] = (Math.random() - 0.5) * 50;
     }
 
-    useFrame((state, delta) => {
+    useFrame((_state, delta) => {
         if (ref.current) {
             ref.current.rotation.x -= delta / 10;
             ref.current.rotation.y -= delta / 15;

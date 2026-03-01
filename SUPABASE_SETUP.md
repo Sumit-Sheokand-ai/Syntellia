@@ -27,23 +27,22 @@ This guide will help you set up Supabase authentication for your Privacy Intelli
    - **anon/public key**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (long string)
 
 ## ⚙️ Step 3: Configure Your Application
-
-1. In your project, navigate to `tools_website.client/`
-2. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
+1. Configure environment variables directly (no `.env` file):
+   ```powershell
+   # Persist for future terminals (Windows)
+   setx VITE_SUPABASE_URL "https://xxxxxxxxxxxxx.supabase.co"
+   setx VITE_SUPABASE_ANON_KEY "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
    ```
 
-3. Edit `.env` and paste your values:
-   ```bash
-   VITE_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+2. For the current terminal session only:
+   ```powershell
+   $env:VITE_SUPABASE_URL = "https://xxxxxxxxxxxxx.supabase.co"
+   $env:VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
    ```
 
-4. **Important**: Add `.env` to `.gitignore` (should already be there):
-   ```
-   .env
-   .env.local
+3. For GitHub Actions builds, store the same values in repository secrets:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
    ```
 
 ## 🔐 Step 4: Configure Authentication Providers
@@ -166,7 +165,7 @@ create policy "Users can delete own searches"
 ## 🚨 Troubleshooting
 
 ### Issue: "Invalid API key"
-**Solution**: Double-check your `.env` file has the correct keys from Supabase dashboard.
+**Solution**: Double-check your environment variables (or GitHub secrets) have the correct keys from Supabase dashboard.
 
 ### Issue: Email not received
 **Solutions**:
@@ -228,7 +227,7 @@ Just enable them in the dashboard and add buttons in Login.tsx.
 
 ## 🔐 Security Best Practices
 
-1. ✅ **Never commit `.env` files** - Already in .gitignore
+1. ✅ **Never commit secret files** - Use environment variables and CI/CD secret stores
 2. ✅ **Use Row Level Security** - Prevents unauthorized data access
 3. ✅ **Validate on backend** - Don't trust client-side only
 4. ✅ **Use HTTPS in production** - Supabase enforces this

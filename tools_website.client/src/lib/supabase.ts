@@ -1,24 +1,26 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // Get environment variables - must be configured for production
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Supabase credentials are required. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+if (!isSupabaseConfigured) {
+    console.error('❌ Supabase credentials are required. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY as environment variables (local shell/system vars) or GitHub Secrets for CI/CD.');
 }
-
-export const supabase = createClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-        auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: true
+export const supabase: SupabaseClient | null = isSupabaseConfigured
+    ? createClient(
+        supabaseUrl,
+        supabaseAnonKey,
+        {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
         }
-    }
-);
+    )
+    : null;
 
 export type User = {
     id: string;

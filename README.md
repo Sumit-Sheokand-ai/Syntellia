@@ -62,6 +62,16 @@ The application now includes **Supabase authentication** with the following feat
 
 **See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for setup instructions.**
 
+### 🔐 Auth Configuration (No `.env` Files)
+
+This project is configured to use environment variables or GitHub Secrets only.
+
+- Required frontend variables:
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_ANON_KEY`
+- For local development: set them as shell/system environment variables.
+- For GitHub Actions: add the same names in repo secrets.
+
 ## 📋 Prerequisites
 
 - .NET 10 SDK

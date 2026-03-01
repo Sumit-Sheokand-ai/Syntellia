@@ -93,7 +93,7 @@ const itemVariants = {
 };
 
 export default function ToolsGrid() {
-    const { user } = useAuth();
+    const { user, isAuthEnabled } = useAuth();
 
     return (
         <section id="tools" className="tools-section">
@@ -108,7 +108,7 @@ export default function ToolsGrid() {
                     <p className="section-subtitle">
                         Six specialized privacy checks to discover how your personal data is being used across the internet
                     </p>
-                    {!user && (
+                    {isAuthEnabled && !user && (
                         <div className="auth-required-notice">
                             <span className="lock-icon">🔒</span>
                             <p>Sign up free to access all checks</p>
@@ -125,8 +125,7 @@ export default function ToolsGrid() {
                 viewport={{ once: true, margin: "-100px" }}
             >
                 {tools.map((tool) => {
-                    // User must be logged in to access tools
-                    const linkTo = user ? tool.path : '/signup';
+                    const linkTo = isAuthEnabled && !user ? '/signup' : tool.path;
 
                     return (
                         <motion.div
@@ -176,7 +175,7 @@ export default function ToolsGrid() {
 
                             <div className="tool-card-footer">
                                 <span className="tool-cta">
-                                    {user ? 'Check Now' : 'Sign Up to Access'}
+                                    {isAuthEnabled ? (user ? 'Check Now' : 'Sign Up to Access') : 'Check Now'}
                                     <span className="arrow">→</span>
                                 </span>
                             </div>
