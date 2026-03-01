@@ -62,8 +62,8 @@ function AppContent() {
         <div className="app-container">
             <header className="header">
                 <div className="header-content">
-                    <Link to="/" className="logo">
-                        Syntellia
+                    <Link to="/" className="logo" aria-label="Syntellia home">
+                        <img src="/syntellia-logo-uploaded.png" alt="Syntellia" className="logo-image" />
                     </Link>
                     <nav className="nav">
                         <NavLink to="/ai-content" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>AI Content</NavLink>
