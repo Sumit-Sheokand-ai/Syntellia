@@ -29,6 +29,12 @@ body.home-premium-page .nav-link:hover {
   background: rgba(18, 18, 18, 0.04);
 }
 
+body.home-premium-page .nav-link.active,
+body.home-premium-page .nav-link[aria-current='page'] {
+  color: #151515;
+  background: rgba(18, 18, 18, 0.07);
+}
+
 body.home-premium-page .nav-link::after {
   background: #c9a227;
 }
@@ -131,7 +137,7 @@ body.home-premium-page .footer p {
 .premium-btn-primary {
   background: #111111;
   color: #ffffff;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
 }
 
 .premium-btn-primary:hover {
@@ -153,7 +159,7 @@ body.home-premium-page .footer p {
   border-radius: 0.9rem;
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(10px);
-  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.07);
   overflow: hidden;
 }
 
@@ -174,15 +180,15 @@ body.home-premium-page .footer p {
 }
 
 .dot.red {
-  background: #f27a72;
+  background: #c8c8c6;
 }
 
 .dot.yellow {
-  background: #e0be49;
+  background: #b6b6b3;
 }
 
 .dot.green {
-  background: #74bd80;
+  background: #9e9e9b;
 }
 
 .panel-content {
@@ -305,7 +311,9 @@ body.home-premium-page .footer p {
   text-align: center;
   color: #333;
   opacity: 0.84;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  padding: 0.2rem 0.3rem;
 }
 
 .premium-pillars {
@@ -386,15 +394,29 @@ body.home-premium-page .footer p {
 .check-card {
   border: 1px solid rgba(17, 17, 17, 0.09);
   border-radius: 0.9rem;
-  padding: 1.3rem 1.1rem;
   background: #f8f8f6;
-  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
 }
 
 .check-card:hover {
   transform: translateY(-3px);
   border-color: rgba(201, 162, 39, 0.55);
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.07);
+  background: #fcfcfb;
+}
+
+.check-card-link {
+  display: block;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+  padding: 1.3rem 1.1rem;
+  border-radius: inherit;
+}
+
+.check-card-link:focus-visible {
+  outline: 2px solid rgba(201, 162, 39, 0.75);
+  outline-offset: 2px;
 }
 
 .check-card h3 {
@@ -421,25 +443,6 @@ body.home-premium-page .footer p {
   border-radius: 999px;
   padding: 0.25rem 0.6rem;
   background: rgba(201, 162, 39, 0.07);
-}
-
-.check-link {
-  margin-top: 0.88rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.38rem;
-  text-decoration: none;
-  color: #171717;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.check-link span {
-  transition: transform 190ms ease;
-}
-
-.check-link:hover span {
-  transform: translateX(3px);
 }
 
 .premium-workflow {
@@ -510,7 +513,7 @@ body.home-premium-page .footer p {
 .workflow-copy li {
   position: relative;
   padding-left: 1.25rem;
-  color: #444;
+  color: #4b4b4b;
   line-height: 1.55;
 }
 
@@ -603,7 +606,7 @@ body.home-premium-page .footer p:last-child {
   }
 
   .brand-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 0.55rem;
   }
 

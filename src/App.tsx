@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, NavLink } from 'react-router-dom';
 import { useState } from 'react';
 import './App.css';
 import { AuthProvider } from './contexts/AuthContext';
@@ -8,8 +8,6 @@ import Home from './pages/Home';
 import AIContentCheck from './pages/AIContentCheck';
 import RobocallCheck from './pages/RobocallCheck';
 import MedicationCheck from './pages/MedicationCheck';
-import JobScreeningCheck from './pages/JobScreeningCheck';
-import LandlordCheck from './pages/LandlordCheck';
 import FaceDatasetCheck from './pages/FaceDatasetCheck';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -68,12 +66,10 @@ function AppContent() {
                         Syntellia
                     </Link>
                     <nav className="nav">
-                        <Link to="/ai-content" className="nav-link">AI Content</Link>
-                        <Link to="/robocall" className="nav-link">Robocall</Link>
-                        <Link to="/medication" className="nav-link">Medication</Link>
-                        <Link to="/job-screening" className="nav-link">Job AI</Link>
-                        <Link to="/landlord" className="nav-link">Landlord</Link>
-                        <Link to="/face-dataset" className="nav-link">Face Dataset</Link>
+                        <NavLink to="/ai-content" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>AI Content</NavLink>
+                        <NavLink to="/robocall" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Robocall</NavLink>
+                        <NavLink to="/medication" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Medication</NavLink>
+                        <NavLink to="/face-dataset" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Face Dataset</NavLink>
                     </nav>
                     <UserMenu />
                 </div>
@@ -101,16 +97,6 @@ function AppContent() {
                             <MedicationCheck />
                         </ProtectedRoute>
                     } />
-                    <Route path="/job-screening" element={
-                        <ProtectedRoute>
-                            <JobScreeningCheck />
-                        </ProtectedRoute>
-                    } />
-                    <Route path="/landlord" element={
-                        <ProtectedRoute>
-                            <LandlordCheck />
-                        </ProtectedRoute>
-                    } />
                     <Route path="/face-dataset" element={
                         <ProtectedRoute>
                             <FaceDatasetCheck />
@@ -125,7 +111,7 @@ function AppContent() {
             </main>
 
             <footer className="footer">
-                <p>All checks are powered by public APIs and open datasets. No proprietary dependencies.</p>
+                <p>Source-backed checks powered by public endpoints and open datasets.</p>
                 <p>&copy; {new Date().getFullYear()} Syntellia &middot; Privacy Intelligence Suite</p>
             </footer>
         </div>

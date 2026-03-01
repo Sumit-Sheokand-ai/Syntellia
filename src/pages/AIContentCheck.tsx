@@ -12,19 +12,26 @@ interface InfiniGramResult {
     IndexName: string;
     Count: number;
     Found: boolean;
+    Error?: string;
 }
 
 interface UrlCheckResult {
+    Query?: string;
     Found: boolean;
     TotalRecords: number;
+    CheckedCrawls?: number;
+    AvailableCrawls?: number;
     Crawls: Array<{ Crawl: string; Count: number }>;
     SampleRecords: CommonCrawlResult[];
+    CrawlStatus?: Array<{ Crawl: string; Available: boolean; Error?: string }>;
 }
 
 interface TextCheckResult {
     Found: boolean;
     Results: InfiniGramResult[];
     TextSnippet: string;
+    CheckedIndexes?: number;
+    AvailableIndexes?: number;
 }
 
 export default function AIContentCheck() {
@@ -38,6 +45,18 @@ export default function AIContentCheck() {
 
     useEffect(() => { document.title = 'AI Content Check — Syntellia'; }, []);
 
+    const formatTimestamp = (timestamp: string): string => {
+        if (!timestamp || timestamp.length < 14) {
+            return timestamp || 'Unknown';
+        }
+        const year = timestamp.slice(0, 4);
+        const month = timestamp.slice(4, 6);
+        const day = timestamp.slice(6, 8);
+        const hour = timestamp.slice(8, 10);
+        const minute = timestamp.slice(10, 12);
+        return `${year}-${month}-${day} ${hour}:${minute} UTC`;
+    };
+
     const handleCheckUrl = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -50,12 +69,22 @@ export default function AIContentCheck() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ Url: urlInput })
             });
-
-            if (!response.ok) throw new Error('Failed to check URL');
-            const data = await response.json();
-            setUrlResult(data);
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.Error || 'Failed to check URL');
+            }
+            setUrlResult({
+                Query: typeof data?.Query === 'string' ? data.Query : urlInput,
+                Found: Boolean(data?.Found),
+                TotalRecords: Number(data?.TotalRecords ?? 0),
+                CheckedCrawls: Number(data?.CheckedCrawls ?? 0),
+                AvailableCrawls: Number(data?.AvailableCrawls ?? 0),
+                Crawls: Array.isArray(data?.Crawls) ? data.Crawls : [],
+                SampleRecords: Array.isArray(data?.SampleRecords) ? data.SampleRecords : [],
+                CrawlStatus: Array.isArray(data?.CrawlStatus) ? data.CrawlStatus : []
+            });
         } catch (err) {
-            setError('Error checking URL. Please try again.');
+            setError(err instanceof Error ? err.message : 'Error checking URL. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -63,6 +92,10 @@ export default function AIContentCheck() {
 
     const handleCheckText = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (textInput.trim().length < 20) {
+            setError('Please enter at least 20 characters for a meaningful text check.');
+            return;
+        }
         setLoading(true);
         setError(null);
         setTextResult(null);
@@ -73,12 +106,19 @@ export default function AIContentCheck() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ Text: textInput })
             });
-
-            if (!response.ok) throw new Error('Failed to check text');
-            const data = await response.json();
-            setTextResult(data);
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.Error || 'Failed to check text');
+            }
+            setTextResult({
+                Found: Boolean(data?.Found),
+                Results: Array.isArray(data?.Results) ? data.Results : [],
+                TextSnippet: typeof data?.TextSnippet === 'string' ? data.TextSnippet : '',
+                CheckedIndexes: Number(data?.CheckedIndexes ?? 0),
+                AvailableIndexes: Number(data?.AvailableIndexes ?? 0)
+            });
         } catch (err) {
-            setError('Error checking text. Please try again.');
+            setError(err instanceof Error ? err.message : 'Error checking text. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -89,24 +129,24 @@ export default function AIContentCheck() {
             <div className="tool-header">
                 <h1 className="tool-title">AI Content Training Check</h1>
                 <p className="tool-description">
-                    Check if your content has been crawled by Common Crawl or appears in major AI training datasets
-                    including Dolma (3T tokens), RedPajama (1.4T), The Pile (380B), and C4 (200B).
+                    Verify whether your content appears in crawl archives or high-volume language-model training corpora
+                    such as Dolma, RedPajama, The Pile, and C4.
                 </p>
             </div>
 
             <div className="input-card">
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="segmented-toggle">
                     <button
-                        className={`button ${checkType === 'url' ? 'button-primary' : ''}`}
+                        className={`button segmented-toggle-btn ${checkType === 'url' ? 'is-active' : ''}`}
                         onClick={() => setCheckType('url')}
-                        style={{ flex: 1 }}
+                        type="button"
                     >
                         Check URL
                     </button>
                     <button
-                        className={`button ${checkType === 'text' ? 'button-primary' : ''}`}
+                        className={`button segmented-toggle-btn ${checkType === 'text' ? 'is-active' : ''}`}
                         onClick={() => setCheckType('text')}
-                        style={{ flex: 1 }}
+                        type="button"
                     >
                         Check Text
                     </button>
@@ -140,6 +180,7 @@ export default function AIContentCheck() {
                                 onChange={(e) => setTextInput(e.target.value)}
                                 required
                             />
+                            <small className="helper-text">For reliable matching, provide at least 20 characters of original text.</small>
                         </div>
                         <button type="submit" className="button button-primary" disabled={loading}>
                             {loading ? 'Checking...' : 'Check Training Datasets'}
@@ -177,6 +218,10 @@ export default function AIContentCheck() {
                                 <span className="stat-value">{urlResult.Crawls.length}</span>
                                 <span className="stat-label">Crawls Found</span>
                             </div>
+                            <div className="stat-card">
+                                <span className="stat-value">{urlResult.AvailableCrawls ?? 0}/{urlResult.CheckedCrawls ?? 0}</span>
+                                <span className="stat-label">Crawls Available</span>
+                            </div>
                         </div>
                     </div>
 
@@ -187,6 +232,52 @@ export default function AIContentCheck() {
                                 {urlResult.Crawls.map((crawl, idx) => (
                                     <li key={idx}>
                                         <strong>{crawl.Crawl}</strong>: {crawl.Count} record(s)
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {urlResult.CrawlStatus && urlResult.CrawlStatus.length > 0 && (
+                        <div className="result-section">
+                            <h4>Crawl Availability</h4>
+                            <ul className="result-list">
+                                {urlResult.CrawlStatus.map((crawl, idx) => (
+                                    <li key={idx}>
+                                        <div className="split-row">
+                                            <span><strong>{crawl.Crawl}</strong></span>
+                                            <span className={`status-badge ${crawl.Available ? 'status-success' : 'status-warning'}`}>
+                                                {crawl.Available ? 'Available' : (crawl.Error || 'Unavailable')}
+                                            </span>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {urlResult.SampleRecords.length > 0 && (
+                        <div className="result-section">
+                            <h4>Sample Evidence</h4>
+                            <ul className="result-list">
+                                {urlResult.SampleRecords.map((record, idx) => (
+                                    <li key={idx}>
+                                        <div><strong>Crawl:</strong> {record.Crawl}</div>
+                                        <div><strong>Captured:</strong> {formatTimestamp(record.Timestamp)}</div>
+                                        <div><strong>Status:</strong> {record.Status || 'Unknown'}</div>
+                                        {record.Url && (
+                                            <div>
+                                                <strong>URL:</strong>{' '}
+                                                <a
+                                                    href={record.Url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="result-inline-link"
+                                                >
+                                                    {record.Url}
+                                                </a>
+                                            </div>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
@@ -213,16 +304,19 @@ export default function AIContentCheck() {
 
                     <div className="result-section">
                         <h4>Dataset Search Results</h4>
-                        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-                            Searched for: "{textResult.TextSnippet.substring(0, 100)}..."
+                        <p className="helper-text">
+                            Searched snippet: "{textResult.TextSnippet.length > 100 ? `${textResult.TextSnippet.substring(0, 100)}...` : (textResult.TextSnippet || 'N/A')}"
+                        </p>
+                        <p className="helper-text">
+                            Index availability: {textResult.AvailableIndexes ?? 0}/{textResult.CheckedIndexes ?? textResult.Results.length}
                         </p>
                         <ul className="result-list">
                             {textResult.Results.map((result, idx) => (
                                 <li key={idx}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div className="split-row">
                                         <span><strong>{result.IndexName}</strong></span>
-                                        <span className={`status-badge ${result.Found ? 'status-danger' : 'status-success'}`}>
-                                            {result.Found ? `${result.Count} matches` : 'Not found'}
+                                        <span className={`status-badge ${result.Error ? 'status-warning' : (result.Found ? 'status-danger' : 'status-success')}`}>
+                                            {result.Error ? result.Error : (result.Found ? `${result.Count} matches` : 'Not found')}
                                         </span>
                                     </div>
                                 </li>

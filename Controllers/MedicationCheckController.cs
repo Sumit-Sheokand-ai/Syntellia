@@ -39,32 +39,65 @@ public class MedicationCheckController : ControllerBase
             }
 
             var escapedDrugName = normalizedDrugName.Replace("\"", "\\\"");
-            var searchQuery = $"openfda.brand_name:\"{escapedDrugName}\"";
-            if (!string.IsNullOrEmpty(normalizedManufacturer))
+            var baseSearchQuery =
+                $"(openfda.brand_name:\"{escapedDrugName}\"+OR+openfda.generic_name:\"{escapedDrugName}\"+OR+openfda.substance_name:\"{escapedDrugName}\")";
+            var escapedManufacturer = string.IsNullOrEmpty(normalizedManufacturer)
+                ? null
+                : normalizedManufacturer.Replace("\"", "\\\"");
+
+            string BuildSearchQuery(bool includeManufacturer)
             {
-                var escapedManufacturer = normalizedManufacturer.Replace("\"", "\\\"");
-                searchQuery += $"+AND+openfda.manufacturer_name:\"{escapedManufacturer}\"";
+                if (includeManufacturer && !string.IsNullOrEmpty(escapedManufacturer))
+                {
+                    return $"{baseSearchQuery}+AND+openfda.manufacturer_name:\"{escapedManufacturer}\"";
+                }
+                return baseSearchQuery;
             }
 
-            var encodedSearchQuery = Uri.EscapeDataString(searchQuery);
-            var url = $"https://api.fda.gov/drug/label.json?search={encodedSearchQuery}&limit=100";
-            var response = await _httpClient.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
+            async Task<(FDAResponse? Parsed, bool NotFound, bool Success, int StatusCode)> QueryLabelsAsync(bool includeManufacturer)
             {
+                var encodedSearchQuery = Uri.EscapeDataString(BuildSearchQuery(includeManufacturer));
+                var url = $"https://api.fda.gov/drug/label.json?search={encodedSearchQuery}&limit=100";
+                var response = await _httpClient.GetAsync(url);
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    return Ok(new { Found = false, Message = "No FDA records found for this medication" });
+                    return (null, true, true, (int)response.StatusCode);
                 }
-                return StatusCode((int)response.StatusCode, new { Error = "Failed to query FDA database" });
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return (null, false, false, (int)response.StatusCode);
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                var parsed = JsonSerializer.Deserialize<FDAResponse>(content);
+                return (parsed, false, true, (int)response.StatusCode);
             }
 
-            var content = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<FDAResponse>(content);
+            var primaryQuery = await QueryLabelsAsync(includeManufacturer: !string.IsNullOrEmpty(normalizedManufacturer));
+            if (!primaryQuery.Success)
+            {
+                return StatusCode(primaryQuery.StatusCode, new { Error = "Failed to query medication label records" });
+            }
+
+            var result = primaryQuery.Parsed;
+            var usedManufacturerFilter = !string.IsNullOrEmpty(normalizedManufacturer);
+
+            if ((result?.Results == null || !result.Results.Any()) && !string.IsNullOrEmpty(normalizedManufacturer))
+            {
+                var fallbackQuery = await QueryLabelsAsync(includeManufacturer: false);
+                if (!fallbackQuery.Success)
+                {
+                    return StatusCode(fallbackQuery.StatusCode, new { Error = "Failed to query medication label records" });
+                }
+
+                result = fallbackQuery.Parsed;
+                usedManufacturerFilter = false;
+            }
 
             if (result?.Results == null || !result.Results.Any())
             {
-                return Ok(new { Found = false, Message = "No FDA records found for this medication" });
+                return Ok(new { Found = false, Message = "No medication label records found for this query" });
             }
 
             var labels = result.Results
@@ -118,7 +151,10 @@ public class MedicationCheckController : ControllerBase
                 {
                     EffectiveDate = l.EffectiveTime,
                     Manufacturer = l.OpenFda?.ManufacturerName?.FirstOrDefault()
-                }).ToList()
+                }).ToList(),
+                MatchingStrategy = usedManufacturerFilter
+                    ? "Brand/generic/substance match with manufacturer filter"
+                    : "Brand/generic/substance match"
             });
         }
         catch (Exception ex)

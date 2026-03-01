@@ -12,6 +12,12 @@ interface UrlCheckResult {
         Name: string;
         Url: string;
     }>;
+    Evidence?: Array<{
+        Crawl: string;
+        Timestamp: string;
+        Status: string;
+        Url: string;
+    }>;
 }
 
 interface UploadCheckResult {
@@ -28,7 +34,14 @@ interface UploadCheckResult {
         IndexSize: string;
         SearchMethod: string;
         ProcessingTime: string;
+        ImageHashSha256?: string;
     };
+    CandidateUrlsDetected?: string[];
+    Evidence?: Array<{
+        Url: string;
+        TotalMatches: number;
+        Crawls: Array<{ Crawl: string; Count: number }>;
+    }>;
 }
 
 export default function FaceDatasetCheck() {
@@ -42,8 +55,25 @@ export default function FaceDatasetCheck() {
 
     useEffect(() => { document.title = 'Face Dataset Check — Syntellia'; }, []);
 
+    const formatTimestamp = (timestamp: string): string => {
+        if (!timestamp || timestamp.length < 14) {
+            return timestamp || 'Unknown';
+        }
+        const year = timestamp.slice(0, 4);
+        const month = timestamp.slice(4, 6);
+        const day = timestamp.slice(6, 8);
+        const hour = timestamp.slice(8, 10);
+        const minute = timestamp.slice(10, 12);
+        return `${year}-${month}-${day} ${hour}:${minute} UTC`;
+    };
+
     const handleUrlCheck = async (e: React.FormEvent) => {
         e.preventDefault();
+        const trimmedUrl = imageUrl.trim();
+        if (!/^https?:\/\//i.test(trimmedUrl)) {
+            setError('Please enter a valid image URL starting with http:// or https://.');
+            return;
+        }
         setLoading(true);
         setError(null);
         setUrlResult(null);
@@ -54,12 +84,22 @@ export default function FaceDatasetCheck() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ImageUrl: imageUrl })
             });
-
-            if (!response.ok) throw new Error('Failed to check image URL');
-            const data = await response.json();
-            setUrlResult(data);
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.Error || 'Failed to check image URL');
+            }
+            setUrlResult({
+                ImageUrl: data?.ImageUrl ?? imageUrl,
+                CheckedDatasets: Array.isArray(data?.CheckedDatasets) ? data.CheckedDatasets : [],
+                Found: Boolean(data?.Found),
+                Confidence: data?.Confidence ?? 'N/A',
+                Message: data?.Message ?? 'No result details available.',
+                Disclaimer: data?.Disclaimer ?? '',
+                Resources: Array.isArray(data?.Resources) ? data.Resources : [],
+                Evidence: Array.isArray(data?.Evidence) ? data.Evidence : []
+            });
         } catch (err) {
-            setError('Error checking image URL. Please verify the URL and try again.');
+            setError(err instanceof Error ? err.message : 'Error checking image URL. Please verify the URL and try again.');
         } finally {
             setLoading(false);
         }
@@ -69,6 +109,14 @@ export default function FaceDatasetCheck() {
         e.preventDefault();
         if (!selectedFile) {
             setError('Please select an image file');
+            return;
+        }
+        if (selectedFile.size > 10 * 1024 * 1024) {
+            setError('Selected image is too large. Maximum size is 10MB.');
+            return;
+        }
+        if (!/^image\/(jpeg|jpg|png|webp)$/i.test(selectedFile.type)) {
+            setError('Unsupported image format. Please upload JPEG, PNG, or WebP.');
             return;
         }
 
@@ -84,14 +132,30 @@ export default function FaceDatasetCheck() {
                 method: 'POST',
                 body: formData
             });
-
+            const data = await response.json().catch(() => null);
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.Error || 'Failed to check image');
+                throw new Error(data?.Error || 'Failed to check image');
             }
-            
-            const data = await response.json();
-            setUploadResult(data);
+
+            setUploadResult({
+                ImageName: data?.ImageName ?? selectedFile.name,
+                ImageSize: Number(data?.ImageSize ?? selectedFile.size),
+                CheckedDatasets: Array.isArray(data?.CheckedDatasets) ? data.CheckedDatasets : [],
+                Found: Boolean(data?.Found),
+                Similarity: Number(data?.Similarity ?? 0),
+                Confidence: data?.Confidence ?? 'N/A',
+                Message: data?.Message ?? 'No result details available.',
+                Disclaimer: data?.Disclaimer ?? '',
+                TechnicalDetails: {
+                    EmbeddingModel: data?.TechnicalDetails?.EmbeddingModel ?? 'N/A',
+                    IndexSize: data?.TechnicalDetails?.IndexSize ?? 'N/A',
+                    SearchMethod: data?.TechnicalDetails?.SearchMethod ?? 'N/A',
+                    ProcessingTime: data?.TechnicalDetails?.ProcessingTime ?? 'N/A',
+                    ImageHashSha256: data?.TechnicalDetails?.ImageHashSha256
+                },
+                CandidateUrlsDetected: Array.isArray(data?.CandidateUrlsDetected) ? data.CandidateUrlsDetected : [],
+                Evidence: Array.isArray(data?.Evidence) ? data.Evidence : []
+            });
         } catch (err: any) {
             setError(err.message || 'Error checking image. Please try again.');
         } finally {
@@ -110,24 +174,24 @@ export default function FaceDatasetCheck() {
             <div className="tool-header">
                 <h1 className="tool-title">Face Dataset Check</h1>
                 <p className="tool-description">
-                    Check if your photo appears in AI training datasets like LAION-5B. Search by URL or
-                    upload an image for visual similarity matching using CLIP embeddings.
+                    Check whether your image URL appears in public crawl indexes that commonly feed
+                    downstream large-scale AI datasets.
                 </p>
             </div>
 
             <div className="input-card">
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="segmented-toggle">
                     <button
-                        className={`button ${checkType === 'url' ? 'button-primary' : ''}`}
+                        className={`button segmented-toggle-btn ${checkType === 'url' ? 'is-active' : ''}`}
                         onClick={() => setCheckType('url')}
-                        style={{ flex: 1 }}
+                        type="button"
                     >
                         Check URL
                     </button>
                     <button
-                        className={`button ${checkType === 'upload' ? 'button-primary' : ''}`}
+                        className={`button segmented-toggle-btn ${checkType === 'upload' ? 'is-active' : ''}`}
                         onClick={() => setCheckType('upload')}
-                        style={{ flex: 1 }}
+                        type="button"
                     >
                         Upload Image
                     </button>
@@ -145,12 +209,10 @@ export default function FaceDatasetCheck() {
                                 onChange={(e) => setImageUrl(e.target.value)}
                                 required
                             />
-                            <small style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'block' }}>
-                                Enter a direct link to your photo (from social media, portfolio, etc.)
-                            </small>
+                            <small className="helper-text">Use a direct image URL (for example from your portfolio or profile page).</small>
                         </div>
                         <button type="submit" className="button button-primary" disabled={loading}>
-                            {loading ? 'Checking...' : 'Check LAION Database'}
+                            {loading ? 'Checking...' : 'Check Crawl Evidence'}
                         </button>
                     </form>
                 ) : (
@@ -164,11 +226,9 @@ export default function FaceDatasetCheck() {
                                 onChange={handleFileChange}
                                 required
                             />
-                            <small style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'block' }}>
-                                Supported formats: JPEG, PNG, WebP (max 10MB)
-                            </small>
+                            <small className="helper-text">Supported formats: JPEG, PNG, WebP (max 10MB).</small>
                             {selectedFile && (
-                                <div style={{ marginTop: '0.5rem', color: 'var(--primary-color)' }}>
+                                <div className="helper-text">
                                     Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
                                 </div>
                             )}
@@ -183,7 +243,7 @@ export default function FaceDatasetCheck() {
             {loading && (
                 <div className="loading">
                     <div className="spinner"></div>
-                    <p>{checkType === 'upload' ? 'Generating embeddings and searching...' : 'Searching dataset index...'}</p>
+                    <p>{checkType === 'upload' ? 'Extracting metadata and checking crawl evidence...' : 'Searching crawl indexes...'}</p>
                 </div>
             )}
 
@@ -195,13 +255,13 @@ export default function FaceDatasetCheck() {
                         <span className={`result-icon ${urlResult.Found ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">URL Check Results</h2>
                         <span className={`status-badge ${urlResult.Found ? 'status-danger' : 'status-success'}`}>
-                            {urlResult.Found ? 'Found in Dataset' : 'Not Found'}
+                            {urlResult.Found ? 'Evidence Found' : 'No Evidence'}
                         </span>
                     </div>
 
                     <div className="result-section">
                         <h4>Checked Datasets</h4>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div className="pill-row">
                             {urlResult.CheckedDatasets.map((dataset, idx) => (
                                 <span key={idx} className="status-badge status-info">
                                     {dataset}
@@ -210,14 +270,10 @@ export default function FaceDatasetCheck() {
                         </div>
                     </div>
 
+
                     <div className="result-section">
-                        <div style={{ 
-                            background: 'var(--bg-secondary)', 
-                            padding: '1rem', 
-                            borderRadius: '8px',
-                            borderLeft: `3px solid ${urlResult.Found ? 'var(--danger-color)' : 'var(--success-color)'}`
-                        }}>
-                            <div style={{ marginBottom: '0.5rem' }}>
+                        <div className={`result-panel ${urlResult.Found ? 'panel-danger' : 'panel-success'}`}>
+                            <div className="result-line">
                                 <strong>Confidence:</strong> {urlResult.Confidence}
                             </div>
                             <div>
@@ -225,6 +281,34 @@ export default function FaceDatasetCheck() {
                             </div>
                         </div>
                     </div>
+
+                    {urlResult.Evidence && urlResult.Evidence.length > 0 && (
+                        <div className="result-section">
+                            <h4>Crawl Evidence</h4>
+                            <ul className="result-list">
+                                {urlResult.Evidence.map((entry, idx) => (
+                                    <li key={idx}>
+                                        <div><strong>Crawl:</strong> {entry.Crawl}</div>
+                                        <div><strong>Captured:</strong> {formatTimestamp(entry.Timestamp)}</div>
+                                        <div><strong>Status:</strong> {entry.Status || 'Unknown'}</div>
+                                        {entry.Url && (
+                                            <div>
+                                                <strong>URL:</strong>{' '}
+                                                <a
+                                                    href={entry.Url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="result-inline-link"
+                                                >
+                                                    {entry.Url}
+                                                </a>
+                                            </div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
 
                     {urlResult.Resources && urlResult.Resources.length > 0 && (
                         <div className="result-section">
@@ -236,7 +320,7 @@ export default function FaceDatasetCheck() {
                                             href={resource.Url} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            style={{ color: 'var(--primary-color)', textDecoration: 'none' }}
+                                            className="result-inline-link"
                                         >
                                             {resource.Name} →
                                         </a>
@@ -256,9 +340,9 @@ export default function FaceDatasetCheck() {
                 <div className="results-card">
                     <div className="result-header">
                         <span className={`result-icon ${uploadResult.Found ? 'icon-warning' : 'icon-success'}`} />
-                        <h2 className="result-title">Visual Similarity Results</h2>
+                        <h2 className="result-title">Upload Evidence Results</h2>
                         <span className={`status-badge ${uploadResult.Found ? 'status-warning' : 'status-success'}`}>
-                            {uploadResult.Found ? 'Similar Images Found' : 'No Matches'}
+                            {uploadResult.Found ? 'Evidence Found' : 'No Evidence'}
                         </span>
                     </div>
 
@@ -271,7 +355,7 @@ export default function FaceDatasetCheck() {
                             {uploadResult.Found && (
                                 <div className="stat-card">
                                     <span className="stat-value">{(uploadResult.Similarity * 100).toFixed(1)}%</span>
-                                    <span className="stat-label">Similarity Score</span>
+                                    <span className="stat-label">Evidence Score</span>
                                 </div>
                             )}
                             <div className="stat-card">
@@ -283,7 +367,7 @@ export default function FaceDatasetCheck() {
 
                     <div className="result-section">
                         <h4>Checked Datasets</h4>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div className="pill-row">
                             {uploadResult.CheckedDatasets.map((dataset, idx) => (
                                 <span key={idx} className="status-badge status-info">
                                     {dataset}
@@ -293,33 +377,75 @@ export default function FaceDatasetCheck() {
                     </div>
 
                     <div className="result-section">
-                        <div style={{ 
-                            background: 'var(--bg-secondary)', 
-                            padding: '1rem', 
-                            borderRadius: '8px',
-                            borderLeft: `3px solid ${uploadResult.Found ? 'var(--warning-color)' : 'var(--success-color)'}`
-                        }}>
+                        <div className={`result-panel ${uploadResult.Found ? 'panel-warning' : 'panel-success'}`}>
                             {uploadResult.Message}
                         </div>
                     </div>
 
                     <div className="result-section">
                         <h4>Technical Details</h4>
-                        <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px' }}>
-                            <div style={{ marginBottom: '0.5rem' }}>
+                        <div className="result-panel">
+                            <div className="result-line">
                                 <strong>Embedding Model:</strong> {uploadResult.TechnicalDetails.EmbeddingModel}
                             </div>
-                            <div style={{ marginBottom: '0.5rem' }}>
+                            <div className="result-line">
                                 <strong>Index Size:</strong> {uploadResult.TechnicalDetails.IndexSize}
                             </div>
-                            <div style={{ marginBottom: '0.5rem' }}>
+                            <div className="result-line">
                                 <strong>Search Method:</strong> {uploadResult.TechnicalDetails.SearchMethod}
                             </div>
-                            <div>
+                            <div className="result-line">
                                 <strong>Processing Time:</strong> {uploadResult.TechnicalDetails.ProcessingTime}
                             </div>
+                            {uploadResult.TechnicalDetails.ImageHashSha256 && (
+                                <div className="result-line" style={{ wordBreak: 'break-all' }}>
+                                    <strong>Image Hash (SHA-256):</strong> {uploadResult.TechnicalDetails.ImageHashSha256}
+                                </div>
+                            )}
                         </div>
                     </div>
+
+                    {uploadResult.CandidateUrlsDetected && uploadResult.CandidateUrlsDetected.length > 0 && (
+                        <div className="result-section">
+                            <h4>Detected Source URLs</h4>
+                            <ul className="result-list">
+                                {uploadResult.CandidateUrlsDetected.map((url, idx) => (
+                                    <li key={idx}>
+                                        <a
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="result-inline-link"
+                                        >
+                                            {url}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {uploadResult.Evidence && uploadResult.Evidence.length > 0 && (
+                        <div className="result-section">
+                            <h4>Evidence Summary</h4>
+                            <ul className="result-list">
+                                {uploadResult.Evidence.map((item, idx) => (
+                                    <li key={idx}>
+                                        <div><strong>Source URL:</strong> {item.Url}</div>
+                                        <div><strong>Total Matches:</strong> {item.TotalMatches}</div>
+                                        <div style={{ marginTop: '0.5rem' }}>
+                                            <strong>Crawl Coverage:</strong>
+                                            <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem' }}>
+                                                {item.Crawls.map((crawl, crawlIdx) => (
+                                                    <li key={crawlIdx}>{crawl.Crawl}: {crawl.Count} record(s)</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
 
                     <div className="disclaimer">
                         <strong>Important:</strong> {uploadResult.Disclaimer}
@@ -328,16 +454,15 @@ export default function FaceDatasetCheck() {
             )}
 
             {!loading && !urlResult && !uploadResult && !error && (
-                <div className="result-section" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <div className="info-block">
                     <h4>How It Works</h4>
-                    <p style={{ marginTop: '1rem', lineHeight: '1.6' }}>
-                        <strong>URL Check:</strong> Searches pre-processed LAION-5B metadata for exact URL matches.<br/>
-                        <strong>Image Upload:</strong> Generates CLIP embeddings and performs visual similarity search
-                        against a representative subset of LAION images.
+                    <p>
+                        <strong>URL Check:</strong> Performs deterministic exact-URL lookups against Common Crawl indexes.<br/>
+                        <strong>Image Upload:</strong> Extracts metadata/source URLs and checks them against crawl indexes.
                     </p>
-                    <p style={{ marginTop: '1rem', lineHeight: '1.6' }}>
-                        Note: Full 5-billion-image search is computationally infeasible for static hosting.
-                        This tool provides probabilistic coverage of high-risk subsets.
+                    <p>
+                        This approach provides transparent evidence for web-crawl exposure, which is often a proxy signal
+                        for inclusion in downstream large-scale AI datasets.
                     </p>
                 </div>
             )}

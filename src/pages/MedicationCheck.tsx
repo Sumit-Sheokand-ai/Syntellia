@@ -24,6 +24,7 @@ interface MedicationResult {
         Manufacturer: string;
     }>;
     Message?: string;
+    MatchingStrategy?: string;
 }
 
 export default function MedicationCheck() {
@@ -32,11 +33,16 @@ export default function MedicationCheck() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<MedicationResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const normalizedDrugName = drugName.trim();
 
     useEffect(() => { document.title = 'Medication Formula Check — Syntellia'; }, []);
 
     const handleCheck = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (normalizedDrugName.length < 2) {
+            setError('Please enter at least 2 characters for the drug name.');
+            return;
+        }
         setLoading(true);
         setError(null);
         setResult(null);
@@ -46,12 +52,24 @@ export default function MedicationCheck() {
             if (manufacturer) params.append('manufacturer', manufacturer);
 
             const response = await fetch(apiUrl(`/api/MedicationCheck/check?${params}`));
-            if (!response.ok) throw new Error('Failed to check medication');
-            
-            const data = await response.json();
-            setResult(data);
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.Error || 'Failed to check medication');
+            }
+
+            setResult({
+                Found: Boolean(data?.Found),
+                DrugName: data?.DrugName ?? drugName,
+                TotalLabels: Number(data?.TotalLabels ?? 0),
+                HasFormulaChanges: Boolean(data?.HasFormulaChanges),
+                Changes: Array.isArray(data?.Changes) ? data.Changes : [],
+                CurrentLabel: data?.CurrentLabel ?? null,
+                HistoricalLabels: Array.isArray(data?.HistoricalLabels) ? data.HistoricalLabels : [],
+                Message: data?.Message,
+                MatchingStrategy: data?.MatchingStrategy
+            });
         } catch (err) {
-            setError('Error checking medication. Please verify the drug name and try again.');
+            setError(err instanceof Error ? err.message : 'Error checking medication. Please verify the drug name and try again.');
         } finally {
             setLoading(false);
         }
@@ -62,19 +80,19 @@ export default function MedicationCheck() {
             <div className="tool-header">
                 <h1 className="tool-title">Medication Formula Check</h1>
                 <p className="tool-description">
-                    Track FDA-approved medication formula changes over time. Compare ingredient lists across
-                    different label versions to see if your medication has been reformulated.
+                    Track formulation changes across historical medication labels to understand whether
+                    inactive ingredient profiles have shifted over time.
                 </p>
             </div>
 
             <div className="input-card">
                 <form onSubmit={handleCheck}>
                     <div className="input-group">
-                        <label className="input-label">Drug Name (Brand Name)</label>
+                        <label className="input-label">Medication Name</label>
                         <input
                             type="text"
                             className="input-field"
-                            placeholder="e.g., Tylenol, Advil, Lipitor"
+                            placeholder="e.g., Paracetamol, Acetaminophen, Ibuprofen"
                             value={drugName}
                             onChange={(e) => setDrugName(e.target.value)}
                             required
@@ -89,12 +107,12 @@ export default function MedicationCheck() {
                             value={manufacturer}
                             onChange={(e) => setManufacturer(e.target.value)}
                         />
-                        <small style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'block' }}>
+                        <small className="helper-text">
                             Narrow results to a specific manufacturer
                         </small>
                     </div>
-                    <button type="submit" className="button button-primary" disabled={loading}>
-                        {loading ? 'Checking...' : 'Check FDA Database'}
+                    <button type="submit" className="button button-primary" disabled={loading || normalizedDrugName.length < 2}>
+                        {loading ? 'Checking...' : 'Check Label Records'}
                     </button>
                 </form>
             </div>
@@ -102,7 +120,7 @@ export default function MedicationCheck() {
             {loading && (
                 <div className="loading">
                     <div className="spinner"></div>
-                    <p>Searching FDA drug labels...</p>
+                    <p>Searching medication label records...</p>
                 </div>
             )}
 
@@ -115,7 +133,7 @@ export default function MedicationCheck() {
                         <h2 className="result-title">No Records Found</h2>
                         <span className="status-badge status-info">Not Found</span>
                     </div>
-                    <p>{result.Message || 'No FDA records found for this medication.'}</p>
+                    <p>{result.Message || 'No matching label records found for this medication.'}</p>
                 </div>
             )}
 
@@ -123,7 +141,7 @@ export default function MedicationCheck() {
                 <div className="results-card">
                     <div className="result-header">
                         <span className={`result-icon ${result.HasFormulaChanges ? 'icon-warning' : 'icon-success'}`} />
-                        <h2 className="result-title">FDA Label Analysis</h2>
+                        <h2 className="result-title">Medication Label Analysis</h2>
                         <span className={`status-badge ${result.HasFormulaChanges ? 'status-warning' : 'status-success'}`}>
                             {result.HasFormulaChanges ? 'Formula Changed' : 'No Changes Detected'}
                         </span>
@@ -133,7 +151,7 @@ export default function MedicationCheck() {
                         <div className="stat-grid">
                             <div className="stat-card">
                                 <span className="stat-value">{result.TotalLabels}</span>
-                                <span className="stat-label">FDA Label Versions</span>
+                                <span className="stat-label">Label Versions</span>
                             </div>
                             <div className="stat-card">
                                 <span className="stat-value">{result.Changes.length}</span>
@@ -142,21 +160,31 @@ export default function MedicationCheck() {
                         </div>
                     </div>
 
+                    {result.MatchingStrategy && (
+                        <div className="result-section">
+                            <p className="helper-text" style={{ marginTop: 0 }}>
+                                <strong>Matching strategy:</strong> {result.MatchingStrategy}
+                            </p>
+                        </div>
+                    )}
+
                     {result.CurrentLabel && (
                         <div className="result-section">
                             <h4>Current Label</h4>
-                            <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px' }}>
-                                <div style={{ marginBottom: '0.5rem' }}>
+                            <div className="result-panel">
+                                <div className="result-line">
                                     <strong>Effective Date:</strong> {result.CurrentLabel.EffectiveDate}
                                 </div>
-                                <div style={{ marginBottom: '0.5rem' }}>
+                                <div className="result-line">
                                     <strong>Manufacturer:</strong> {result.CurrentLabel.Manufacturer || 'Not specified'}
                                 </div>
                                 {result.CurrentLabel.InactiveIngredients && (
                                     <div>
                                         <strong>Inactive Ingredients:</strong>
-                                        <p style={{ marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                            {result.CurrentLabel.InactiveIngredients.substring(0, 500)}...
+                                        <p className="helper-text" style={{ marginTop: '0.5rem' }}>
+                                            {result.CurrentLabel.InactiveIngredients.length > 500
+                                                ? `${result.CurrentLabel.InactiveIngredients.substring(0, 500)}...`
+                                                : result.CurrentLabel.InactiveIngredients}
                                         </p>
                                     </div>
                                 )}
@@ -184,9 +212,9 @@ export default function MedicationCheck() {
                             <ul className="result-list">
                                 {result.HistoricalLabels.map((label, idx) => (
                                     <li key={idx}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <div className="split-row">
                                             <span><strong>{label.EffectiveDate}</strong></span>
-                                            <span style={{ color: 'var(--text-secondary)' }}>
+                                            <span className="helper-text" style={{ marginTop: 0 }}>
                                                 {label.Manufacturer || 'Not specified'}
                                             </span>
                                         </div>
@@ -197,7 +225,7 @@ export default function MedicationCheck() {
                     )}
 
                     <div className="disclaimer">
-                        <strong>What this means:</strong> This tool compares FDA drug label versions over time.
+                        <strong>What this means:</strong> This tool compares medication label versions over time.
                         Changes in inactive ingredients can affect how a medication works for some people, though
                         the active ingredient remains the same. Consult your healthcare provider if you notice
                         changes after switching manufacturers or refilling a prescription.
