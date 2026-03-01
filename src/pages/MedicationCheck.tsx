@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface FormulaChange {
     FromDate: string;
@@ -42,7 +43,7 @@ export default function MedicationCheck() {
             const params = new URLSearchParams({ drugName });
             if (manufacturer) params.append('manufacturer', manufacturer);
 
-            const response = await fetch(`/api/MedicationCheck/check?${params}`);
+            const response = await fetch(apiUrl(`/api/MedicationCheck/check?${params}`));
             if (!response.ok) throw new Error('Failed to check medication');
             
             const data = await response.json();

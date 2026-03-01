@@ -8,9 +8,6 @@ Stop-Process -Name "node" -ErrorAction SilentlyContinue -Force
 Stop-Process -Name "dotnet" -ErrorAction SilentlyContinue -Force
 Start-Sleep -Seconds 2
 
-# Navigate to client directory
-Set-Location tools_website.client
-
 # Clean Vite cache
 Write-Host "2. Cleaning Vite cache..." -ForegroundColor Yellow
 if (Test-Path ".vite") {
@@ -37,9 +34,6 @@ Write-Host "5. Reinstalling dependencies..." -ForegroundColor Yellow
 npm install
 Write-Host "   ✓ Dependencies installed" -ForegroundColor Green
 
-# Go back to root
-Set-Location ..
-
 Write-Host ""
 Write-Host "✅ Cleanup complete!" -ForegroundColor Green
 Write-Host ""
@@ -47,5 +41,4 @@ Write-Host "🚀 Now starting the server..." -ForegroundColor Cyan
 Write-Host ""
 
 # Start the server
-Set-Location tools_website.Server
-dotnet run
+dotnet run --project tools_website.Server.csproj

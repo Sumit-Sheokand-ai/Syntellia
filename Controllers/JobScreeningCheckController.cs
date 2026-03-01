@@ -29,7 +29,7 @@ public class JobScreeningCheckController : ControllerBase
 
     public JobScreeningCheckController(IHttpClientFactory httpClientFactory, ILogger<JobScreeningCheckController> logger)
     {
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("ExternalApis");
         _logger = logger;
     }
 

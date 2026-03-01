@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface CommonCrawlResult {
     Crawl: string;
@@ -42,7 +43,7 @@ export default function AIContentCheck() {
         setUrlResult(null);
 
         try {
-            const response = await fetch('/api/AIContentCheck/check-url', {
+            const response = await fetch(apiUrl('/api/AIContentCheck/check-url'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ Url: urlInput })
@@ -65,7 +66,7 @@ export default function AIContentCheck() {
         setTextResult(null);
 
         try {
-            const response = await fetch('/api/AIContentCheck/check-text', {
+            const response = await fetch(apiUrl('/api/AIContentCheck/check-text'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ Text: textInput })

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface RobocallResult {
     PhoneNumber: string;
@@ -27,7 +28,7 @@ export default function RobocallCheck() {
         setResult(null);
 
         try {
-            const response = await fetch(`/api/RobocallCheck/check/${encodeURIComponent(phoneNumber)}`);
+            const response = await fetch(apiUrl(`/api/RobocallCheck/check/${encodeURIComponent(phoneNumber)}`));
             if (!response.ok) throw new Error('Failed to check phone number');
             
             const data = await response.json();

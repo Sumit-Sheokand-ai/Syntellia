@@ -12,7 +12,7 @@ public class LandlordCheckController : ControllerBase
 
     public LandlordCheckController(IHttpClientFactory httpClientFactory, ILogger<LandlordCheckController> logger)
     {
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("ExternalApis");
         _logger = logger;
     }
 
@@ -21,7 +21,19 @@ public class LandlordCheckController : ControllerBase
     {
         try
         {
-            if (city.ToLower() != "nyc")
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return BadRequest(new { Error = "Landlord name or address is required." });
+            }
+
+            var normalizedQuery = query.Trim();
+            if (normalizedQuery.Length is < 2 or > 120)
+            {
+                return BadRequest(new { Error = "Query must be between 2 and 120 characters." });
+            }
+
+            var normalizedCity = city.Trim().ToLowerInvariant();
+            if (normalizedCity != "nyc")
             {
                 return Ok(new
                 {
@@ -34,11 +46,12 @@ public class LandlordCheckController : ControllerBase
             var results = new List<object>();
             var totalViolations = 0;
             var totalLitigations = 0;
+            var encodedQuery = Uri.EscapeDataString(normalizedQuery);
 
             // Query NYC HPD Violations
             try
             {
-                var violationsUrl = $"https://data.cityofnewyork.us/resource/wvxf-dwi5.json?$limit=100&$where=lower(ownername) like '%{query.ToLower()}%' OR lower(businesshousenumber || ' ' || businessstreetname) like '%{query.ToLower()}%'";
+                var violationsUrl = $"https://data.cityofnewyork.us/resource/wvxf-dwi5.json?$limit=100&$q={encodedQuery}";
                 var response = await _httpClient.GetAsync(violationsUrl);
 
                 if (response.IsSuccessStatusCode)
@@ -56,7 +69,7 @@ public class LandlordCheckController : ControllerBase
             // Query NYC HPD Litigation
             try
             {
-                var litigationUrl = $"https://data.cityofnewyork.us/resource/59kj-x8nc.json?$limit=100&$where=lower(respondent) like '%{query.ToLower()}%'";
+                var litigationUrl = $"https://data.cityofnewyork.us/resource/59kj-x8nc.json?$limit=100&$q={encodedQuery}";
                 var response = await _httpClient.GetAsync(litigationUrl);
 
                 if (response.IsSuccessStatusCode)
@@ -90,7 +103,7 @@ public class LandlordCheckController : ControllerBase
             return Ok(new
             {
                 Found = hasCases,
-                Query = query,
+                Query = normalizedQuery,
                 City = "NYC",
                 Summary = new
                 {

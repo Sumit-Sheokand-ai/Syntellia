@@ -12,7 +12,7 @@ public class RobocallCheckController : ControllerBase
 
     public RobocallCheckController(IHttpClientFactory httpClientFactory, ILogger<RobocallCheckController> logger)
     {
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("ExternalApis");
         _logger = logger;
     }
 
@@ -21,10 +21,19 @@ public class RobocallCheckController : ControllerBase
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(phoneNumber) || phoneNumber.Length > 32)
+            {
+                return BadRequest(new { Error = "Invalid phone number format" });
+            }
             // Clean phone number
             var cleanNumber = new string(phoneNumber.Where(char.IsDigit).ToArray());
-            
-            if (cleanNumber.Length < 10)
+
+            if (cleanNumber.Length == 11 && cleanNumber.StartsWith("1"))
+            {
+                cleanNumber = cleanNumber[1..];
+            }
+
+            if (cleanNumber.Length != 10)
             {
                 return BadRequest(new { Error = "Invalid phone number format" });
             }

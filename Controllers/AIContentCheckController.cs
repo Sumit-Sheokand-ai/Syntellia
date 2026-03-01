@@ -13,7 +13,7 @@ public class AIContentCheckController : ControllerBase
 
     public AIContentCheckController(IHttpClientFactory httpClientFactory, ILogger<AIContentCheckController> logger)
     {
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("ExternalApis");
         _logger = logger;
     }
 
@@ -22,7 +22,21 @@ public class AIContentCheckController : ControllerBase
     {
         try
         {
-            var domain = new Uri(request.Url).Host;
+            if (request is null ||
+                string.IsNullOrWhiteSpace(request.Url) ||
+                !Uri.TryCreate(request.Url, UriKind.Absolute, out var parsedUrl) ||
+                (parsedUrl.Scheme != Uri.UriSchemeHttp && parsedUrl.Scheme != Uri.UriSchemeHttps))
+            {
+                return BadRequest(new { Error = "Invalid URL. Please provide a valid http or https URL." });
+            }
+
+            var domain = parsedUrl.Host;
+            if (string.IsNullOrWhiteSpace(domain) || domain.Length > 255)
+            {
+                return BadRequest(new { Error = "Invalid domain in URL." });
+            }
+
+            var encodedDomain = Uri.EscapeDataString(domain);
             var results = new List<CommonCrawlResult>();
 
             // Query Common Crawl CDX API
@@ -32,7 +46,7 @@ public class AIContentCheckController : ControllerBase
             {
                 try
                 {
-                    var cdxUrl = $"https://index.commoncrawl.org/{crawl}-index?url={domain}&output=json";
+                    var cdxUrl = $"https://index.commoncrawl.org/{crawl}-index?url={encodedDomain}&output=json";
                     var response = await _httpClient.GetAsync(cdxUrl);
                     
                     if (response.IsSuccessStatusCode)
@@ -87,6 +101,16 @@ public class AIContentCheckController : ControllerBase
     {
         try
         {
+            if (request is null || string.IsNullOrWhiteSpace(request.Text))
+            {
+                return BadRequest(new { Error = "Text is required." });
+            }
+
+            var normalizedText = request.Text.Trim();
+            if (normalizedText.Length > 5000)
+            {
+                return BadRequest(new { Error = "Text is too long. Maximum length is 5000 characters." });
+            }
             var indexes = new[]
             {
                 new { Name = "Dolma (3T tokens)", Index = "v4_dolma-v1_7_llama" },
@@ -96,7 +120,7 @@ public class AIContentCheckController : ControllerBase
             };
 
             var results = new List<InfiniGramResult>();
-            var textSnippet = request.Text.Length > 100 ? request.Text.Substring(0, 100) : request.Text;
+            var textSnippet = normalizedText.Length > 200 ? normalizedText[..200] : normalizedText;
 
             foreach (var idx in indexes)
             {
