@@ -12,7 +12,7 @@ public class MedicationCheckController : ControllerBase
 
     public MedicationCheckController(IHttpClientFactory httpClientFactory, ILogger<MedicationCheckController> logger)
     {
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("ExternalApis");
         _logger = logger;
     }
 
@@ -21,13 +21,33 @@ public class MedicationCheckController : ControllerBase
     {
         try
         {
-            var searchQuery = $"openfda.brand_name:\"{drugName}\"";
-            if (!string.IsNullOrEmpty(manufacturer))
+            if (string.IsNullOrWhiteSpace(drugName))
             {
-                searchQuery += $"+AND+openfda.manufacturer_name:\"{manufacturer}\"";
+                return BadRequest(new { Error = "Drug name is required." });
             }
 
-            var url = $"https://api.fda.gov/drug/label.json?search={searchQuery}&limit=100";
+            var normalizedDrugName = drugName.Trim();
+            if (normalizedDrugName.Length is < 2 or > 100)
+            {
+                return BadRequest(new { Error = "Drug name must be between 2 and 100 characters." });
+            }
+
+            var normalizedManufacturer = manufacturer?.Trim();
+            if (!string.IsNullOrEmpty(normalizedManufacturer) && normalizedManufacturer.Length > 120)
+            {
+                return BadRequest(new { Error = "Manufacturer must be 120 characters or fewer." });
+            }
+
+            var escapedDrugName = normalizedDrugName.Replace("\"", "\\\"");
+            var searchQuery = $"openfda.brand_name:\"{escapedDrugName}\"";
+            if (!string.IsNullOrEmpty(normalizedManufacturer))
+            {
+                var escapedManufacturer = normalizedManufacturer.Replace("\"", "\\\"");
+                searchQuery += $"+AND+openfda.manufacturer_name:\"{escapedManufacturer}\"";
+            }
+
+            var encodedSearchQuery = Uri.EscapeDataString(searchQuery);
+            var url = $"https://api.fda.gov/drug/label.json?search={encodedSearchQuery}&limit=100";
             var response = await _httpClient.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
@@ -84,7 +104,7 @@ public class MedicationCheckController : ControllerBase
             return Ok(new
             {
                 Found = true,
-                DrugName = drugName,
+                DrugName = normalizedDrugName,
                 TotalLabels = labels.Count,
                 HasFormulaChanges = hasFormulaChanges,
                 Changes = changes,

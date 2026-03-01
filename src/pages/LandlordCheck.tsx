@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface LandlordResult {
     Found: boolean;
@@ -35,7 +36,7 @@ export default function LandlordCheck() {
 
         try {
             const params = new URLSearchParams({ query, city });
-            const response = await fetch(`/api/LandlordCheck/check?${params}`);
+            const response = await fetch(apiUrl(`/api/LandlordCheck/check?${params}`));
             
             if (!response.ok) throw new Error('Failed to check landlord');
             const data = await response.json();

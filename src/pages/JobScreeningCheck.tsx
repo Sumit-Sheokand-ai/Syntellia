@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface JobScreeningResult {
     CompanyName: string;
@@ -26,7 +27,7 @@ export default function JobScreeningCheck() {
         setResult(null);
 
         try {
-            const response = await fetch('/api/JobScreeningCheck/check', {
+            const response = await fetch(apiUrl('/api/JobScreeningCheck/check'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 

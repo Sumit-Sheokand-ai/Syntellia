@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 interface UrlCheckResult {
     ImageUrl: string;
@@ -46,7 +47,7 @@ export default function FaceDatasetCheck() {
         setUrlResult(null);
 
         try {
-            const response = await fetch('/api/FaceDatasetCheck/check-url', {
+            const response = await fetch(apiUrl('/api/FaceDatasetCheck/check-url'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ImageUrl: imageUrl })
@@ -77,7 +78,7 @@ export default function FaceDatasetCheck() {
             const formData = new FormData();
             formData.append('image', selectedFile);
 
-            const response = await fetch('/api/FaceDatasetCheck/check-upload', {
+            const response = await fetch(apiUrl('/api/FaceDatasetCheck/check-upload'), {
                 method: 'POST',
                 body: formData
             });
