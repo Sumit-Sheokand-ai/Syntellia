@@ -2,6 +2,7 @@ import { createContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { User } from '../lib/supabase';
 import type { Session, AuthError } from '@supabase/supabase-js';
+import { clearSessionCache, readSessionCache, writeSessionCache } from '../lib/sessionCache';
 
 interface AuthContextType {
     user: User | null;
@@ -29,14 +30,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setLoading(false);
             return;
         }
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
+
+        const cachedSession = readSessionCache();
+        if (cachedSession) {
+            setSession(cachedSession);
+            setUser(cachedSession.user ?? null);
             setLoading(false);
-        }).catch(() => {
-            setLoading(false);
-        });
+        }
 
         // Listen for auth changes
         const {
@@ -44,8 +44,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
+            writeSessionCache(session);
             setLoading(false);
         });
+
+        if (!cachedSession) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                setSession(session);
+                setUser(session?.user ?? null);
+                writeSessionCache(session);
+                setLoading(false);
+            }).catch(() => {
+                setLoading(false);
+            });
+        }
 
         return () => subscription.unsubscribe();
     }, []);
@@ -63,6 +75,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email,
             password,
         });
+        if (!error) {
+            const { data: { session } } = await supabase.auth.getSession();
+            writeSessionCache(session);
+            setSession(session);
+            setUser(session?.user ?? null);
+        }
         return { error };
     };
 
@@ -77,6 +95,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 data: metadata,
             },
         });
+        if (!error) {
+            const { data: { session } } = await supabase.auth.getSession();
+            writeSessionCache(session);
+            setSession(session);
+            setUser(session?.user ?? null);
+        }
         return { error };
     };
 
@@ -85,6 +109,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
         }
         await supabase.auth.signOut();
+        clearSessionCache();
+        setSession(null);
+        setUser(null);
     };
 
     const signInWithGoogle = async () => {

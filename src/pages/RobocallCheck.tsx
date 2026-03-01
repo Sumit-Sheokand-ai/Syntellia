@@ -13,6 +13,12 @@ interface RobocallResult {
         State: string;
         Subject: string;
     }>;
+    QueryVariants?: string[];
+    QueryDiagnostics?: {
+        SuccessfulQueries: number;
+        FailedQueries: Array<{ Variant: string; Error: string }>;
+    };
+    DataSource?: string;
 }
 
 export default function RobocallCheck() {
@@ -20,23 +26,40 @@ export default function RobocallCheck() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<RobocallResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const numericLength = phoneNumber.replace(/\D/g, '').length;
 
     useEffect(() => { document.title = 'Robocall Spoofing Check — Syntellia'; }, []);
 
     const handleCheck = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (numericLength < 6 || numericLength > 15) {
+            setError('Please enter a valid phone number between 6 and 15 digits.');
+            return;
+        }
         setLoading(true);
         setError(null);
         setResult(null);
 
         try {
             const response = await fetch(apiUrl(`/api/RobocallCheck/check/${encodeURIComponent(phoneNumber)}`));
-            if (!response.ok) throw new Error('Failed to check phone number');
-            
-            const data = await response.json();
-            setResult(data);
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.Error || 'Failed to check phone number');
+            }
+
+            setResult({
+                PhoneNumber: data?.PhoneNumber ?? phoneNumber,
+                TotalComplaints: Number(data?.TotalComplaints ?? 0),
+                Spoofed: Boolean(data?.Spoofed),
+                ComplaintTypes: Array.isArray(data?.ComplaintTypes) ? data.ComplaintTypes : [],
+                StateDistribution: Array.isArray(data?.StateDistribution) ? data.StateDistribution : [],
+                RecentComplaints: Array.isArray(data?.RecentComplaints) ? data.RecentComplaints : [],
+                QueryVariants: Array.isArray(data?.QueryVariants) ? data.QueryVariants : [],
+                QueryDiagnostics: data?.QueryDiagnostics,
+                DataSource: typeof data?.DataSource === 'string' ? data.DataSource : undefined
+            });
         } catch (err) {
-            setError('Error checking phone number. Please verify the number and try again.');
+            setError(err instanceof Error ? err.message : 'Error checking phone number. Please verify the number and try again.');
         } finally {
             setLoading(false);
         }
@@ -47,8 +70,8 @@ export default function RobocallCheck() {
             <div className="tool-header">
                 <h1 className="tool-title">Robocall Spoofing Check</h1>
                 <p className="tool-description">
-                    Check if your phone number has been reported as the source of unwanted robocalls.
-                    Data from FCC Consumer Complaints database—if complaints exist, your number was likely spoofed.
+                    Check whether your phone number appears in public robocall complaint records.
+                    International formats are supported (for example, +44, +91, +61, +1).
                 </p>
             </div>
 
@@ -59,17 +82,20 @@ export default function RobocallCheck() {
                         <input
                             type="tel"
                             className="input-field"
-                            placeholder="(555) 123-4567 or 5551234567"
+                            placeholder="+44 20 7946 0958 or +1 555 123 4567"
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value)}
                             required
                         />
-                        <small style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'block' }}>
-                            Enter your phone number in any format. US numbers only.
+                        <small className="helper-text">
+                            Enter a phone number in any international format (E.164 or local formatting).
+                        </small>
+                        <small className="helper-text compact">
+                            Digits detected: {numericLength}/15
                         </small>
                     </div>
-                    <button type="submit" className="button button-primary" disabled={loading}>
-                        {loading ? 'Checking...' : 'Check FCC Database'}
+                    <button type="submit" className="button button-primary" disabled={loading || numericLength < 6 || numericLength > 15}>
+                        {loading ? 'Checking...' : 'Check Robocall Records'}
                     </button>
                 </form>
             </div>
@@ -77,7 +103,7 @@ export default function RobocallCheck() {
             {loading && (
                 <div className="loading">
                     <div className="spinner"></div>
-                    <p>Searching FCC complaints...</p>
+                    <p>Searching complaint records...</p>
                 </div>
             )}
 
@@ -105,10 +131,18 @@ export default function RobocallCheck() {
                             </div>
                             <div className="stat-card">
                                 <span className="stat-value">{result.StateDistribution.length}</span>
-                                <span className="stat-label">States Affected</span>
+                                <span className="stat-label">Locations Affected</span>
                             </div>
                         </div>
                     </div>
+
+                    {result.DataSource && (
+                        <div className="result-section">
+                            <p className="helper-text" style={{ marginTop: 0 }}>
+                                <strong>Data source:</strong> {result.DataSource}
+                            </p>
+                        </div>
+                    )}
 
                     {result.TotalComplaints > 0 && (
                         <>
@@ -117,7 +151,7 @@ export default function RobocallCheck() {
                                 <ul className="result-list">
                                     {result.ComplaintTypes.map((type, idx) => (
                                         <li key={idx}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <div className="split-row">
                                                 <span><strong>{type.Type}</strong></span>
                                                 <span className="status-badge status-info">{type.Count}</span>
                                             </div>
@@ -128,11 +162,11 @@ export default function RobocallCheck() {
 
                             {result.StateDistribution.length > 0 && (
                                 <div className="result-section">
-                                    <h4>State Distribution (Top 10)</h4>
+                                    <h4>Location Distribution (Top 10)</h4>
                                     <ul className="result-list">
                                         {result.StateDistribution.map((state, idx) => (
                                             <li key={idx}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <div className="split-row">
                                                     <span><strong>{state.State}</strong></span>
                                                     <span className="status-badge status-info">{state.Count}</span>
                                                 </div>
@@ -157,13 +191,36 @@ export default function RobocallCheck() {
                                     </ul>
                                 </div>
                             )}
+
+                            {result.QueryDiagnostics && (
+                                <div className="result-section">
+                                    <h4>Query Diagnostics</h4>
+                                    <p className="helper-text" style={{ marginTop: 0 }}>
+                                        Successful variant lookups: {result.QueryDiagnostics.SuccessfulQueries}
+                                    </p>
+                                    {result.QueryVariants && result.QueryVariants.length > 0 && (
+                                        <div className="helper-text" style={{ marginTop: 0 }}>
+                                            <strong>Checked variants:</strong> {result.QueryVariants.join(', ')}
+                                        </div>
+                                    )}
+                                    {result.QueryDiagnostics.FailedQueries?.length > 0 && (
+                                        <ul className="result-list">
+                                            {result.QueryDiagnostics.FailedQueries.map((entry, idx) => (
+                                                <li key={idx}>
+                                                    <strong>{entry.Variant}</strong>: {entry.Error}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
                         </>
                     )}
 
                     <div className="disclaimer">
                         <strong>What this means:</strong> {result.Spoofed 
-                            ? 'Your number has been reported as the source of unwanted calls. This almost always means scammers are spoofing your number—they don\'t actually have access to your phone. You can file a complaint at fcc.gov/complaints.'
-                            : 'No FCC complaints found for this number. This is a good sign—your number hasn\'t been publicly reported as a source of unwanted calls.'
+                            ? 'This number appears in complaint records linked to unwanted calls. In many cases this indicates caller ID spoofing rather than direct compromise of your device.'
+                            : 'No complaint matches were found for this number in the queried public records.'
                         }
                     </div>
                 </div>

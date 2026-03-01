@@ -30,27 +30,31 @@ public class AIContentCheckController : ControllerBase
                 return BadRequest(new { Error = "Invalid URL. Please provide a valid http or https URL." });
             }
 
-            var domain = parsedUrl.Host;
-            if (string.IsNullOrWhiteSpace(domain) || domain.Length > 255)
+            var normalizedUrl = parsedUrl.AbsoluteUri;
+            if (normalizedUrl.Length > 2048)
             {
-                return BadRequest(new { Error = "Invalid domain in URL." });
+                return BadRequest(new { Error = "URL is too long. Maximum length is 2048 characters." });
             }
 
-            var encodedDomain = Uri.EscapeDataString(domain);
             var results = new List<CommonCrawlResult>();
+            var crawlStatus = new List<object>();
 
             // Query Common Crawl CDX API
             var crawls = new[] { "CC-MAIN-2024-10", "CC-MAIN-2023-50", "CC-MAIN-2023-23", "CC-MAIN-2022-49" };
+            var availableCrawls = 0;
             
             foreach (var crawl in crawls)
             {
                 try
                 {
-                    var cdxUrl = $"https://index.commoncrawl.org/{crawl}-index?url={encodedDomain}&output=json";
+                    var encodedTarget = Uri.EscapeDataString(normalizedUrl);
+                    var cdxUrl = $"https://index.commoncrawl.org/{crawl}-index?url={encodedTarget}&matchType=exact&output=json&filter=status:200";
                     var response = await _httpClient.GetAsync(cdxUrl);
                     
                     if (response.IsSuccessStatusCode)
                     {
+                        availableCrawls++;
+                        crawlStatus.Add(new { Crawl = crawl, Available = true });
                         var content = await response.Content.ReadAsStringAsync();
                         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                         
@@ -62,31 +66,42 @@ public class AIContentCheckController : ControllerBase
                                 results.Add(new CommonCrawlResult
                                 {
                                     Crawl = crawl,
-                                    Timestamp = record.GetProperty("timestamp").GetString() ?? "",
-                                    Url = record.GetProperty("url").GetString() ?? "",
-                                    Status = record.GetProperty("status").GetString() ?? ""
+                                    Timestamp = record.TryGetProperty("timestamp", out var ts) ? (ts.GetString() ?? string.Empty) : string.Empty,
+                                    Url = record.TryGetProperty("url", out var u) ? (u.GetString() ?? string.Empty) : string.Empty,
+                                    Status = record.TryGetProperty("status", out var s) ? (s.GetString() ?? string.Empty) : string.Empty
                                 });
                             }
-                            catch { }
+                            catch
+                            {
+                            }
                         }
+                    }
+                    else
+                    {
+                        crawlStatus.Add(new { Crawl = crawl, Available = false, Error = $"HTTP {(int)response.StatusCode}" });
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Error querying crawl {Crawl}", crawl);
+                    crawlStatus.Add(new { Crawl = crawl, Available = false, Error = "Request failed" });
                 }
             }
 
             return Ok(new
             {
+                Query = normalizedUrl,
                 Found = results.Any(),
                 TotalRecords = results.Count,
+                CheckedCrawls = crawls.Length,
+                AvailableCrawls = availableCrawls,
                 Crawls = results.GroupBy(r => r.Crawl).Select(g => new
                 {
                     Crawl = g.Key,
                     Count = g.Count()
                 }).ToList(),
-                SampleRecords = results.Take(5).ToList()
+                SampleRecords = results.Take(5).ToList(),
+                CrawlStatus = crawlStatus
             });
         }
         catch (Exception ex)
@@ -124,6 +139,12 @@ public class AIContentCheckController : ControllerBase
 
             foreach (var idx in indexes)
             {
+                var resultEntry = new InfiniGramResult
+                {
+                    IndexName = idx.Name,
+                    Count = 0,
+                    Found = false
+                };
                 try
                 {
                     var payload = new
@@ -144,27 +165,34 @@ public class AIContentCheckController : ControllerBase
                     {
                         var result = await response.Content.ReadAsStringAsync();
                         var json = JsonSerializer.Deserialize<JsonElement>(result);
-                        var count = json.GetProperty("count").GetInt64();
+                        var count = json.TryGetProperty("count", out var countElement)
+                            ? countElement.GetInt64()
+                            : 0;
 
-                        results.Add(new InfiniGramResult
-                        {
-                            IndexName = idx.Name,
-                            Count = count,
-                            Found = count > 0
-                        });
+                        resultEntry.Count = count;
+                        resultEntry.Found = count > 0;
+                    }
+                    else
+                    {
+                        resultEntry.Error = $"HTTP {(int)response.StatusCode}";
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Error querying index {Index}", idx.Name);
+                    resultEntry.Error = "Unavailable";
                 }
+
+                results.Add(resultEntry);
             }
 
             return Ok(new
             {
                 Found = results.Any(r => r.Found),
                 Results = results,
-                TextSnippet = textSnippet
+                TextSnippet = textSnippet,
+                CheckedIndexes = indexes.Length,
+                AvailableIndexes = results.Count(r => string.IsNullOrWhiteSpace(r.Error))
             });
         }
         catch (Exception ex)
@@ -188,5 +216,6 @@ public class AIContentCheckController : ControllerBase
         public string IndexName { get; set; } = "";
         public long Count { get; set; }
         public bool Found { get; set; }
+        public string? Error { get; set; }
     }
 }

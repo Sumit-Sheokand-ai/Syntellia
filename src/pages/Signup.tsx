@@ -63,7 +63,7 @@ export default function Signup() {
                         <div className="success-icon">✓</div>
                         <h1 className="auth-title">Welcome!</h1>
                         <p className="auth-subtitle">
-                            Your account has been created successfully. You now have access to all Syntellia privacy checks!
+                            Your account is ready. You now have access to all current Syntellia privacy workflows.
                         </p>
                         <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>
                             Redirecting to home page...
@@ -78,8 +78,8 @@ export default function Signup() {
         <div className="tool-page">
             <div className="auth-container">
                 <div className="auth-card">
-                    <h1 className="auth-title">Get Started Free</h1>
-                    <p className="auth-subtitle">Create an account to unlock all 6 Syntellia privacy checks</p>
+                    <h1 className="auth-title">Create Your Account</h1>
+                    <p className="auth-subtitle">Create an account to unlock all current Syntellia privacy workflows</p>
 
                     {error && <div className="error-message">{error}</div>}
 

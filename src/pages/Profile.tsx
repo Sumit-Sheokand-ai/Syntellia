@@ -37,7 +37,7 @@ export default function Profile() {
             <div className="tool-header">
                 <h1 className="tool-title">Your Profile</h1>
                 <p className="tool-description">
-                    Manage your account settings and view your saved searches
+                    Manage your account and review your Syntellia access details
                 </p>
             </div>
 
@@ -63,9 +63,9 @@ export default function Profile() {
                 </div>
 
                 <div className="profile-section">
-                    <h3>Saved Searches</h3>
+                    <h3>Session Preferences</h3>
                     <p style={{ color: 'var(--text-secondary)' }}>
-                        Your saved searches are stored securely and accessible from any device.
+                        Session state is cached client-side for faster sign-in continuity across visits.
                     </p>
                 </div>
 

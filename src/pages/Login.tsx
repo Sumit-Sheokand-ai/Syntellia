@@ -51,14 +51,14 @@ export default function Login() {
             <div className="auth-container">
                 <div className="auth-card">
                     <h1 className="auth-title">Welcome Back</h1>
-                    <p className="auth-subtitle">Login to access all 6 Syntellia privacy checks</p>
+                    <p className="auth-subtitle">Sign in to access all current Syntellia privacy workflows</p>
 
                     {from !== '/' && (
                         <div className="warning-message">
                             <div>
                                 <strong>Authentication Required</strong>
                                 <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                                    Please sign in to access Syntellia privacy checks
+                                    Please sign in to continue to this workflow
                                 </p>
                             </div>
                         </div>

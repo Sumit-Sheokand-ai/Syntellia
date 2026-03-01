@@ -23,35 +23,94 @@ public class RobocallCheckController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(phoneNumber) || phoneNumber.Length > 32)
             {
-                return BadRequest(new { Error = "Invalid phone number format" });
+                return BadRequest(new { Error = "Invalid phone number format. Use a valid international number." });
             }
-            // Clean phone number
-            var cleanNumber = new string(phoneNumber.Where(char.IsDigit).ToArray());
-
-            if (cleanNumber.Length == 11 && cleanNumber.StartsWith("1"))
+            var digitsOnly = new string(phoneNumber.Where(char.IsDigit).ToArray());
+            if (digitsOnly.Length < 6 || digitsOnly.Length > 15)
             {
-                cleanNumber = cleanNumber[1..];
+                return BadRequest(new { Error = "Invalid phone number format. Use a valid international number (6-15 digits)." });
             }
 
-            if (cleanNumber.Length != 10)
+            var queryVariants = new List<string>
             {
-                return BadRequest(new { Error = "Invalid phone number format" });
-            }
+                digitsOnly
+            };
 
-            var url = $"https://opendata.fcc.gov/resource/vakf-fz8e.json?caller_id_number={cleanNumber}&$limit=50";
-            var response = await _httpClient.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
+            if (phoneNumber.TrimStart().StartsWith("+"))
             {
-                return StatusCode((int)response.StatusCode, new { Error = "Failed to query FCC database" });
+                queryVariants.Add($"+{digitsOnly}");
             }
 
-            var content = await response.Content.ReadAsStringAsync();
-            var complaints = JsonSerializer.Deserialize<List<FCCComplaint>>(content) ?? new List<FCCComplaint>();
+            if (digitsOnly.StartsWith("00") && digitsOnly.Length > 8)
+            {
+                queryVariants.Add(digitsOnly[2..]);
+            }
+
+            if (digitsOnly.Length == 11 && digitsOnly.StartsWith("1"))
+            {
+                queryVariants.Add(digitsOnly[1..]);
+            }
+
+            if (digitsOnly.Length > 10)
+            {
+                queryVariants.Add(digitsOnly[^10..]);
+            }
+
+            queryVariants = queryVariants
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct(StringComparer.Ordinal)
+                .Take(5)
+                .ToList();
+
+            var complaints = new List<FCCComplaint>();
+            var successfulQueries = 0;
+            var failedQueries = new List<object>();
+            foreach (var variant in queryVariants)
+            {
+                var encodedVariant = Uri.EscapeDataString(variant);
+                var url = $"https://opendata.fcc.gov/resource/vakf-fz8e.json?caller_id_number={encodedVariant}&$limit=50";
+                HttpResponseMessage response;
+                try
+                {
+                    response = await _httpClient.GetAsync(url);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Robocall query request failed for variant {Variant}", variant);
+                    failedQueries.Add(new { Variant = variant, Error = "Request failed" });
+                    continue;
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    failedQueries.Add(new { Variant = variant, Error = $"HTTP {(int)response.StatusCode}" });
+                    continue;
+                }
+                successfulQueries++;
+
+                var content = await response.Content.ReadAsStringAsync();
+                var variantComplaints = JsonSerializer.Deserialize<List<FCCComplaint>>(content) ?? new List<FCCComplaint>();
+                complaints.AddRange(variantComplaints);
+            }
+
+            if (successfulQueries == 0)
+            {
+                return StatusCode(502, new
+                {
+                    Error = "Unable to query complaint records at the moment.",
+                    QueryVariants = queryVariants,
+                    FailedQueries = failedQueries
+                });
+            }
+
+            complaints = complaints
+                .GroupBy(c => $"{c.caller_id_number}|{c.DateReceived}|{c.CallType}|{c.ConsumerState}|{c.IssueDescription}")
+                .Select(g => g.First())
+                .ToList();
 
             var summary = new
             {
-                PhoneNumber = cleanNumber,
+                PhoneNumber = phoneNumber.Trim(),
                 TotalComplaints = complaints.Count,
                 Spoofed = complaints.Count > 0,
                 ComplaintTypes = complaints
@@ -75,7 +134,14 @@ public class RobocallCheckController : ControllerBase
                         State = c.ConsumerState,
                         Subject = c.IssueDescription
                     })
-                    .ToList()
+                    .ToList(),
+                QueryVariants = queryVariants,
+                QueryDiagnostics = new
+                {
+                    SuccessfulQueries = successfulQueries,
+                    FailedQueries = failedQueries
+                },
+                DataSource = "Public robocall complaint records"
             };
 
             return Ok(summary);

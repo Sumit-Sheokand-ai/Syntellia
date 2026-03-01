@@ -3,7 +3,14 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import '../styles/home-premium.css';
 
-const trustedBy = ['Acme', 'Apex', 'BoltShift', 'Infinite', 'Global', 'Stack'];
+const trustedBy = [
+    'Security Operations',
+    'Compliance Teams',
+    'Privacy Researchers',
+    'Policy Analysts',
+    'Product Trust',
+    'Risk & Governance'
+];
 
 const checks = [
     {
@@ -14,27 +21,15 @@ const checks = [
     },
     {
         title: 'Robocall Spoofing',
-        summary: 'Check if your phone number appears in FCC complaint records linked to spoofed call activity.',
+        summary: 'Check if your phone number appears in public complaint records linked to spoofed call activity.',
         path: '/robocall',
-        metric: 'FCC open complaints data'
+        metric: 'Public complaint data'
     },
     {
         title: 'Medication Formula Tracking',
-        summary: 'Track inactive-ingredient changes across historical FDA labels for your medication.',
+        summary: 'Track inactive-ingredient changes across historical medication label records for your medication.',
         path: '/medication',
-        metric: 'FDA label dataset'
-    },
-    {
-        title: 'AI Resume Screening',
-        summary: 'Estimate AI/ATS use signals on hiring pages before submitting applications.',
-        path: '/job-screening',
-        metric: 'ATS signal detection'
-    },
-    {
-        title: 'Landlord Record Check',
-        summary: 'Review violation and litigation signals from public NYC housing sources.',
-        path: '/landlord',
-        metric: 'NYC open housing data'
+        metric: 'Medication label records'
     },
     {
         title: 'Face Dataset Trace',
@@ -76,21 +71,21 @@ export default function Home() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.7, ease: 'easeOut' }}
                 >
-                    <span className="premium-badge">Syntellia 2.0 · Privacy Intelligence Suite</span>
+                    <span className="premium-badge">Syntellia · Privacy Intelligence Suite</span>
                     <h1 className="premium-title">
                         Understand your digital exposure with
                         <span> absolute clarity</span>
                     </h1>
                     <p className="premium-subtitle">
-                        Run six focused checks for AI training data, robocall spoofing, medication changes, housing risk,
-                        hiring automation, and face-dataset exposure—built on real public sources.
+                        Run focused checks for AI training exposure, robocall complaint signals, medication label history,
+                        and face-dataset trace evidence—grounded in public sources.
                     </p>
                     <div className="premium-hero-actions">
                         <Link to="/signup" className="premium-btn premium-btn-primary">
-                            Get Started
+                            Start Assessment
                         </Link>
                         <a href="#checks" className="premium-btn premium-btn-secondary">
-                            Explore Checks
+                            View Workflows
                         </a>
                     </div>
                 </motion.div>
@@ -140,7 +135,7 @@ export default function Home() {
             </section>
 
             <section className="premium-trust">
-                <p>Trusted by privacy-conscious teams worldwide</p>
+                <p>Built for modern privacy and trust teams</p>
                 <div className="brand-row">
                     {trustedBy.map((brand) => (
                         <span key={brand}>{brand}</span>
@@ -177,7 +172,7 @@ export default function Home() {
             <section className="premium-checks" id="checks">
                 <div className="checks-header">
                     <h2>Syntellia Checks</h2>
-                    <p>Choose a focused workflow based on the type of risk you want to assess.</p>
+                    <p>Select a focused workflow based on the risk signal you need to validate.</p>
                 </div>
                 <div className="checks-grid">
                     {checks.map((check, index) => (
@@ -189,11 +184,10 @@ export default function Home() {
                             viewport={{ once: true, margin: '-100px' }}
                             transition={{ duration: 0.5, delay: index * 0.06 }}
                         >
-                            <h3>{check.title}</h3>
-                            <p>{check.summary}</p>
-                            <div className="check-metric">{check.metric}</div>
-                            <Link to={check.path} className="check-link">
-                                Open Check <span>→</span>
+                            <Link to={check.path} className="check-card-link" aria-label={`Open ${check.title}`}>
+                                <h3>{check.title}</h3>
+                                <p>{check.summary}</p>
+                                <div className="check-metric">{check.metric}</div>
                             </Link>
                         </motion.article>
                     ))}
@@ -227,8 +221,8 @@ export default function Home() {
                 >
                     <h2>Clarity without visual noise</h2>
                     <p>
-                        Syntellia is intentionally minimal: focused checks, source-backed output, and no distracting clutter.
-                        It is built for teams that need confidence, not hype.
+                        Syntellia is intentionally minimal: focused checks, source-backed output, and restrained interaction.
+                        It is designed for teams that need confidence, not noise.
                     </p>
                     <ul>
                         <li>Structured output for fast decision-making</li>
@@ -239,8 +233,8 @@ export default function Home() {
             </section>
 
             <section className="premium-cta">
-                <h2>Ready to run your first privacy check?</h2>
-                <p>Start with a free account and access all Syntellia workflows.</p>
+                <h2>Ready to run your first assessment?</h2>
+                <p>Create an account to access all current Syntellia workflows.</p>
                 <div className="premium-hero-actions">
                     <Link to="/signup" className="premium-btn premium-btn-primary">
                         Create Account
