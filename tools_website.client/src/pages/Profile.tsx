@@ -1,0 +1,100 @@
+import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+
+export default function Profile() {
+    const { user, signOut, loading } = useAuth();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        if (!loading && !user) {
+            navigate('/login');
+        }
+    }, [user, loading, navigate]);
+
+    const handleSignOut = async () => {
+        await signOut();
+        navigate('/');
+    };
+
+    if (loading) {
+        return (
+            <div className="loading">
+                <div className="spinner"></div>
+                <p>Loading profile...</p>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return null;
+    }
+
+    return (
+        <div className="tool-page">
+            <div className="tool-header">
+                <h1 className="tool-title">👤 Your Profile</h1>
+                <p className="tool-description">
+                    Manage your account settings and view your saved searches
+                </p>
+            </div>
+
+            <div className="input-card">
+                <div className="profile-section">
+                    <h3>Account Information</h3>
+                    <div className="profile-info">
+                        <div className="profile-item">
+                            <label>Email</label>
+                            <p>{user.email}</p>
+                        </div>
+                        {user.user_metadata?.full_name && (
+                            <div className="profile-item">
+                                <label>Full Name</label>
+                                <p>{user.user_metadata.full_name}</p>
+                            </div>
+                        )}
+                        <div className="profile-item">
+                            <label>User ID</label>
+                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{user.id}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="profile-section">
+                    <h3>Saved Searches</h3>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                        Feature coming soon! You'll be able to save and track your searches here.
+                    </p>
+                </div>
+
+                <div className="profile-section">
+                    <h3>Privacy Settings</h3>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                        Your search history is private and stored securely. Only you can access your data.
+                    </p>
+                </div>
+
+                <div className="profile-actions">
+                    <button 
+                        onClick={handleSignOut}
+                        className="button button-primary"
+                    >
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+
+            <div className="results-card">
+                <h3>Coming Soon Features</h3>
+                <ul className="result-list">
+                    <li>📝 Save and organize your searches</li>
+                    <li>📊 View search history and trends</li>
+                    <li>🔔 Set up alerts for changes</li>
+                    <li>📧 Email notifications</li>
+                    <li>📱 Mobile app access</li>
+                    <li>🔐 Two-factor authentication</li>
+                </ul>
+            </div>
+        </div>
+    );
+}
