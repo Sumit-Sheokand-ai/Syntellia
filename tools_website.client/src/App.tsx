@@ -16,8 +16,12 @@ import Signup from './pages/Signup';
 import Profile from './pages/Profile';
 
 function UserMenu() {
-    const { user, signOut } = useAuth();
+    const { user, signOut, isAuthEnabled } = useAuth();
     const [dropdownOpen, setDropdownOpen] = useState(false);
+
+    if (!isAuthEnabled) {
+        return null;
+    }
 
     if (!user) {
         return (

@@ -6,8 +6,12 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-    const { user, loading } = useAuth();
+    const { user, loading, isAuthEnabled } = useAuth();
     const location = useLocation();
+
+    if (!isAuthEnabled) {
+        return <>{children}</>;
+    }
 
     // Show loading state while checking auth
     if (loading) {
