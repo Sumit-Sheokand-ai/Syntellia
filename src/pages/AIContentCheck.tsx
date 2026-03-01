@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiUrl } from '../lib/api';
 
 interface CommonCrawlResult {
@@ -35,6 +35,8 @@ export default function AIContentCheck() {
     const [urlResult, setUrlResult] = useState<UrlCheckResult | null>(null);
     const [textResult, setTextResult] = useState<TextCheckResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => { document.title = 'AI Content Check — Syntellia'; }, []);
 
     const handleCheckUrl = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -85,7 +87,7 @@ export default function AIContentCheck() {
     return (
         <div className="tool-page">
             <div className="tool-header">
-                <h1 className="tool-title">🤖 AI Content Training Check</h1>
+                <h1 className="tool-title">AI Content Training Check</h1>
                 <p className="tool-description">
                     Check if your content has been crawled by Common Crawl or appears in major AI training datasets
                     including Dolma (3T tokens), RedPajama (1.4T), The Pile (380B), and C4 (200B).
@@ -158,7 +160,7 @@ export default function AIContentCheck() {
             {urlResult && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{urlResult.Found ? '⚠️' : '✅'}</span>
+                        <span className={`result-icon ${urlResult.Found ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">Common Crawl Results</h2>
                         <span className={`status-badge ${urlResult.Found ? 'status-danger' : 'status-success'}`}>
                             {urlResult.Found ? 'Found in Archives' : 'Not Found'}
@@ -202,7 +204,7 @@ export default function AIContentCheck() {
             {textResult && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{textResult.Found ? '⚠️' : '✅'}</span>
+                        <span className={`result-icon ${textResult.Found ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">Training Dataset Results</h2>
                         <span className={`status-badge ${textResult.Found ? 'status-danger' : 'status-success'}`}>
                             {textResult.Found ? 'Found in Datasets' : 'Not Found'}

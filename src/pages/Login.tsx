@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
@@ -12,6 +12,8 @@ export default function Login() {
     const location = useLocation();
 
     const from = (location.state as { from?: string })?.from || '/';
+
+    useEffect(() => { document.title = 'Sign In — Syntellia'; }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -53,7 +55,6 @@ export default function Login() {
 
                     {from !== '/' && (
                         <div className="warning-message">
-                            <span>🔒</span>
                             <div>
                                 <strong>Authentication Required</strong>
                                 <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>

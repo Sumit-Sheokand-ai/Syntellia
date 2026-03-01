@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiUrl } from '../lib/api';
 
 interface FormulaChange {
@@ -33,6 +33,8 @@ export default function MedicationCheck() {
     const [result, setResult] = useState<MedicationResult | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    useEffect(() => { document.title = 'Medication Formula Check — Syntellia'; }, []);
+
     const handleCheck = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -58,7 +60,7 @@ export default function MedicationCheck() {
     return (
         <div className="tool-page">
             <div className="tool-header">
-                <h1 className="tool-title">💊 Medication Formula Check</h1>
+                <h1 className="tool-title">Medication Formula Check</h1>
                 <p className="tool-description">
                     Track FDA-approved medication formula changes over time. Compare ingredient lists across
                     different label versions to see if your medication has been reformulated.
@@ -109,7 +111,7 @@ export default function MedicationCheck() {
             {result && !result.Found && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">ℹ️</span>
+                        <span className="result-icon icon-info" />
                         <h2 className="result-title">No Records Found</h2>
                         <span className="status-badge status-info">Not Found</span>
                     </div>
@@ -120,7 +122,7 @@ export default function MedicationCheck() {
             {result && result.Found && (
                 <div className="results-card">
                     <div className="result-header">
-                        <span className="result-icon">{result.HasFormulaChanges ? '⚠️' : '✅'}</span>
+                        <span className={`result-icon ${result.HasFormulaChanges ? 'icon-warning' : 'icon-success'}`} />
                         <h2 className="result-title">FDA Label Analysis</h2>
                         <span className={`status-badge ${result.HasFormulaChanges ? 'status-warning' : 'status-success'}`}>
                             {result.HasFormulaChanges ? 'Formula Changed' : 'No Changes Detected'}

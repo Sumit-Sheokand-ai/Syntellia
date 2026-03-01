@@ -40,7 +40,7 @@ function UserMenu() {
                 className="user-button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
             >
-                <span>👤</span>
+                <span className="user-avatar">{user.email?.charAt(0).toUpperCase()}</span>
                 <span>{user.email?.split('@')[0]}</span>
             </button>
 
@@ -125,8 +125,8 @@ function AppContent() {
             </main>
 
             <footer className="footer">
-                <p>All tools use only free, public APIs and open datasets. No paid or proprietary dependencies.</p>
-                <p>Built with ASP.NET Core + React | Open Source</p>
+                <p>All checks are powered by public APIs and open datasets. No proprietary dependencies.</p>
+                <p>&copy; {new Date().getFullYear()} Syntellia &middot; Privacy Intelligence Suite</p>
             </footer>
         </div>
     );
