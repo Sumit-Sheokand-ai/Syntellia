@@ -8,6 +8,7 @@ type SupabaseDatabase = {
       scans: {
         Row: {
           id: string;
+          user_id: string;
           site_name: string;
           url: string;
           scan_size: string;
@@ -23,6 +24,7 @@ type SupabaseDatabase = {
         };
         Insert: {
           id: string;
+          user_id: string;
           site_name: string;
           url: string;
           scan_size: string;
@@ -37,6 +39,7 @@ type SupabaseDatabase = {
           report?: Json | null;
         };
         Update: {
+          user_id?: string;
           site_name?: string;
           url?: string;
           scan_size?: string;
@@ -63,7 +66,7 @@ type SupabaseDatabase = {
 let cachedClient: ReturnType<typeof createClient<SupabaseDatabase>> | null = null;
 
 function readSupabaseUrl() {
-  return process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  return process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
 }
 
 function readServiceRoleKey() {
@@ -79,7 +82,7 @@ export function getSupabaseAdminClient() {
   const supabaseServiceRoleKey = readServiceRoleKey();
 
   if (!supabaseUrl) {
-    throw new Error("Missing SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) for Supabase access.");
+    throw new Error("Missing SUPABASE_URL (or VITE_SUPABASE_URL) for Supabase access.");
   }
 
   if (!supabaseServiceRoleKey) {

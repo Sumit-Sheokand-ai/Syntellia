@@ -9,6 +9,7 @@ export type ScanStatus = "Queued" | "Running" | "Completed" | "Failed";
 
 export type ScanRecord = {
   id: string;
+  userId: string;
   siteName: string;
   url: string;
   scanSize: string;

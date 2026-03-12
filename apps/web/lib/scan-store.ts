@@ -53,6 +53,7 @@ const QUEUE_DELAY_MS = 1200;
 
 type ScanRow = {
   id: string;
+  user_id: string;
   site_name: string;
   url: string;
   scan_size: string;
@@ -70,6 +71,7 @@ type ScanRow = {
 function mapRowToRecord(row: ScanRow): ScanRecord {
   return {
     id: row.id,
+    userId: row.user_id,
     siteName: row.site_name,
     url: row.url,
     scanSize: row.scan_size,
@@ -88,6 +90,7 @@ function mapRowToRecord(row: ScanRow): ScanRecord {
 function mapRecordToRowInsert(record: ScanRecord): ScanRow {
   return {
     id: record.id,
+    user_id: record.userId,
     site_name: record.siteName,
     url: record.url,
     scan_size: record.scanSize,
@@ -105,6 +108,7 @@ function mapRecordToRowInsert(record: ScanRecord): ScanRow {
 
 function mapRecordToRowUpdate(record: ScanRecord) {
   return {
+    user_id: record.userId,
     site_name: record.siteName,
     url: record.url,
     scan_size: record.scanSize,
@@ -258,9 +262,9 @@ const buildReport = (input: CreateScanInput, extracted: ExtractedPageData): Scan
   };
 };
 
-async function fetchScanRow(scanId: string) {
+async function fetchScanRow(userId: string, scanId: string) {
   const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase.from("scans").select("*").eq("id", scanId).maybeSingle();
+  const { data, error } = await supabase.from("scans").select("*").eq("id", scanId).eq("user_id", userId).maybeSingle();
 
   if (error) {
     throw new Error(formatSupabaseError("Unable to fetch scan", error));
@@ -269,8 +273,8 @@ async function fetchScanRow(scanId: string) {
   return (data as ScanRow | null) ?? null;
 }
 
-async function updateScan(scanId: string, updater: (current: ScanRecord) => ScanRecord) {
-  const current = await getScan(scanId);
+async function updateScan(userId: string, scanId: string, updater: (current: ScanRecord) => ScanRecord) {
+  const current = await getScan(userId, scanId);
 
   if (!current) {
     return null;
@@ -282,6 +286,7 @@ async function updateScan(scanId: string, updater: (current: ScanRecord) => Scan
     .from("scans")
     .update(mapRecordToRowUpdate(next))
     .eq("id", scanId)
+    .eq("user_id", userId)
     .select("*")
     .single();
 
@@ -292,15 +297,15 @@ async function updateScan(scanId: string, updater: (current: ScanRecord) => Scan
   return mapRowToRecord(data as ScanRow);
 }
 
-async function processScan(scanId: string) {
-  await updateScan(scanId, (current) => ({
+async function processScan(userId: string, scanId: string) {
+  await updateScan(userId, scanId, (current) => ({
     ...current,
     status: "Running",
     startedAt: new Date().toISOString(),
     error: undefined
   }));
 
-  const current = await getScan(scanId);
+  const current = await getScan(userId, scanId);
 
   if (!current) {
     return;
@@ -309,7 +314,7 @@ async function processScan(scanId: string) {
   try {
     const extracted = await extractPageData(current.url);
 
-    await updateScan(scanId, (record) => ({
+    await updateScan(userId, scanId, (record) => ({
       ...record,
       status: "Completed",
       completedAt: new Date().toISOString(),
@@ -324,7 +329,7 @@ async function processScan(scanId: string) {
       )
     }));
   } catch (error) {
-    await updateScan(scanId, (record) => ({
+    await updateScan(userId, scanId, (record) => ({
       ...record,
       status: "Failed",
       completedAt: new Date().toISOString(),
@@ -334,12 +339,13 @@ async function processScan(scanId: string) {
   }
 }
 
-export async function createScan(input: CreateScanInput) {
+export async function createScan(userId: string, input: CreateScanInput) {
   const id = `scan-${Math.random().toString(36).slice(2, 10)}`;
   const sizeDetails = getSizeDetails(input.scanSize);
 
   const record: ScanRecord = {
     id,
+    userId,
     siteName: deriveSiteName(input.url),
     url: input.url,
     scanSize: input.scanSize,
@@ -361,8 +367,8 @@ export async function createScan(input: CreateScanInput) {
   return mapRowToRecord(data as ScanRow);
 }
 
-export async function advanceScan(scanId: string) {
-  const scan = await getScan(scanId);
+export async function advanceScan(userId: string, scanId: string) {
+  const scan = await getScan(userId, scanId);
 
   if (!scan) {
     return null;
@@ -379,36 +385,38 @@ export async function advanceScan(scanId: string) {
       return scan;
     }
 
-    return updateScan(scanId, (current) => ({
+    return updateScan(userId, scanId, (current) => ({
       ...current,
       status: "Running",
       startedAt: current.startedAt ?? new Date().toISOString()
     }));
   }
 
-  if (activeJobs.has(scanId)) {
+  const jobKey = `${userId}:${scanId}`;
+
+  if (activeJobs.has(jobKey)) {
     return scan;
   }
 
-  activeJobs.add(scanId);
+  activeJobs.add(jobKey);
 
   try {
-    await processScan(scanId);
+    await processScan(userId, scanId);
   } finally {
-    activeJobs.delete(scanId);
+    activeJobs.delete(jobKey);
   }
 
-  return getScan(scanId);
+  return getScan(userId, scanId);
 }
 
-export async function getScan(scanId: string) {
-  const row = await fetchScanRow(scanId);
+export async function getScan(userId: string, scanId: string) {
+  const row = await fetchScanRow(userId, scanId);
   return row ? mapRowToRecord(row) : null;
 }
 
-export async function listScans() {
+export async function listScans(userId: string) {
   const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase.from("scans").select("*").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("scans").select("*").eq("user_id", userId).order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(formatSupabaseError("Unable to list scans", error));
