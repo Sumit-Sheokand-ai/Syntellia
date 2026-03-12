@@ -1,0 +1,13 @@
+.git
+.github
+.vs
+.vscode
+node_modules
+**/node_modules
+.next
+**/.next
+apps/web/.data
+.env
+.env.*
+*.log
+npm-debug.log*
