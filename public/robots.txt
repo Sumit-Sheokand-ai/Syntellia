@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /profile
-
-Sitemap: https://syntellia.ca/sitemap.xml

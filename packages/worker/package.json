@@ -1,0 +1,7 @@
+{
+  "name": "@syntellia/worker",
+  "private": true,
+  "scripts": {
+    "dev": "node src/index.js"
+  }
+}
