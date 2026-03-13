@@ -15,6 +15,12 @@ type ReportOverviewProps = {
   };
 };
 
+function getSeverityLabel(severity: "high" | "medium" | "low") {
+  if (severity === "high") return "High impact";
+  if (severity === "medium") return "Medium impact";
+  return "Low impact";
+}
+
 export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
   return (
     <div className="space-y-8">
@@ -22,7 +28,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
         <ShellCard className="p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3">
-              <p className="text-sm uppercase tracking-[0.3em] text-white/45">Your scan</p>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/45">Customer experience report</p>
               <h1 className="text-3xl font-semibold text-white md:text-5xl">{report.siteName}</h1>
               <p className="max-w-3xl text-base leading-8 text-white/68">{report.summary}</p>
             </div>
@@ -33,16 +39,16 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           </div>
         </ShellCard>
         <ShellCard className="p-8">
-          <p className="text-sm uppercase tracking-[0.3em] text-white/45">Scan summary</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-white/45">Review snapshot</p>
           <div className="mt-6 space-y-3 text-sm text-white/72">
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Status: {scanMeta?.status ?? "Created"}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan size: {scanMeta?.scanSize ?? report.scope}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Pages reviewed: up to {scanMeta?.pageLimit ?? 1}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Login: {scanMeta?.loginMode ?? "No login needed"}</div>
           </div>
-          <p className="mt-6 text-sm uppercase tracking-[0.3em] text-white/45">Main focus</p>
+          <p className="mt-6 text-sm uppercase tracking-[0.3em] text-white/45">Customer journey cues</p>
           <div className="mt-6 grid grid-cols-2 gap-3 text-sm text-white/75">
-            {[scanMeta?.focusArea ?? "Overall feel", ...report.interactions.slice(0, 3)].map((item) => (
+            {[scanMeta?.focusArea ?? "Overall feel", ...(report.source.customerSignals?.ctaLabels.slice(0, 2) ?? []), ...report.interactions.slice(0, 1)].map((item) => (
               <div key={item} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                 {item}
               </div>
@@ -55,8 +61,8 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
         {report.scores.map((score) => (
           <ShellCard key={score.label} className="p-6">
             <p className="text-sm uppercase tracking-[0.26em] text-white/45">{score.label}</p>
-            <div className="mt-5 flex items-end justify-between">
-              <span className="text-5xl font-semibold text-white">{score.value}</span>
+            <div className="mt-5 space-y-2">
+              <span className="block text-5xl font-semibold text-white">{score.value}/100</span>
               <span className="text-sm text-white/55">{score.trend}</span>
             </div>
           </ShellCard>
@@ -65,7 +71,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr,0.8fr]">
         <ShellCard className="p-8">
-          <h2 className="text-2xl font-semibold text-white">What this review looks at</h2>
+          <h2 className="text-2xl font-semibold text-white">What customers will notice</h2>
           <div className="mt-6 space-y-5">
             {report.tokenGroups.map((group) => (
               <div key={group.label} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
@@ -82,7 +88,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           </div>
         </ShellCard>
         <ShellCard className="p-8">
-          <h2 className="text-2xl font-semibold text-white">Patterns we will capture</h2>
+          <h2 className="text-2xl font-semibold text-white">Key page building blocks</h2>
           <div className="mt-6 flex flex-wrap gap-3">
             {report.components.map((component) => (
               <span key={component} className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm text-white/78">
@@ -95,7 +101,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
       <div className="grid gap-5 lg:grid-cols-[1.15fr,0.85fr]">
         <ShellCard className="p-8">
-          <h2 className="text-2xl font-semibold text-white">Live page signals</h2>
+          <h2 className="text-2xl font-semibold text-white">Evidence from the live page</h2>
           <div className="mt-6 space-y-5">
             <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
               <div className="text-sm uppercase tracking-[0.24em] text-white/45">Fetched page title</div>
@@ -112,10 +118,29 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Images: {report.source.imageCount}</div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">HTTP status: {report.source.statusCode}</div>
             </div>
+            {report.source.customerSignals ? (
+              <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <div className="text-sm uppercase tracking-[0.24em] text-white/45">Customer-readiness metrics</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 text-sm text-white/75">
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    CTA labels found: {report.source.customerSignals.ctaLabels.length}
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    Trust cues found: {report.source.customerSignals.trustSignals.length}
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    Avg paragraph size: {report.source.customerSignals.readability.avgParagraphWords} words
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    Alt text coverage: {report.source.customerSignals.accessibility.altCoverage}%
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </ShellCard>
         <ShellCard className="p-8">
-          <h2 className="text-2xl font-semibold text-white">Style tokens we found</h2>
+          <h2 className="text-2xl font-semibold text-white">Brand and visual cues</h2>
           <div className="mt-6 space-y-5">
             <div>
               <div className="text-sm uppercase tracking-[0.24em] text-white/45">Colors</div>
@@ -145,6 +170,18 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 )}
               </div>
             </div>
+            {report.source.customerSignals?.highlightWords.length ? (
+              <div>
+                <div className="text-sm uppercase tracking-[0.24em] text-white/45">Value words detected</div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {report.source.customerSignals.highlightWords.map((word) => (
+                    <span key={word} className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm text-white/78">
+                      {word}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {report.source.notes.length ? (
               <div>
                 <div className="text-sm uppercase tracking-[0.24em] text-white/45">Extraction notes</div>
@@ -163,12 +200,15 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
       <ShellCard className="p-8">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold text-white">What you will get back</h2>
-          <p className="text-sm text-white/52">A clear summary shaped around your selected focus</p>
+          <h2 className="text-2xl font-semibold text-white">What to improve first</h2>
+          <p className="text-sm text-white/52">Plain-language actions prioritized by customer impact</p>
         </div>
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
           {report.findings.map((finding) => (
             <div key={finding.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+              <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
+                {getSeverityLabel(finding.severity)}
+              </div>
               <h3 className="mt-4 text-xl font-medium text-white">{finding.title}</h3>
               <p className="mt-3 text-sm leading-7 text-white/65">{finding.detail}</p>
             </div>

@@ -2,6 +2,12 @@ const cheerio = require("cheerio");
 
 const COLOR_PATTERN = /#(?:[0-9a-f]{3,8})\b|rgba?\([^)]+\)|hsla?\([^)]+\)/gi;
 const FONT_FAMILY_PATTERN = /font-family\s*:\s*([^;}{]+)/gi;
+const CTA_PATTERN = /\b(sign up|get started|start free|book|buy|try|contact|request|demo|subscribe|checkout|apply|join|schedule)\b/i;
+const TRUST_PATTERN = /\b(privacy|terms|refund|returns|shipping|contact|support|about|security|guarantee|policy|legal)\b/i;
+const FAQ_PATTERN = /\bfaq|frequently asked questions\b/i;
+const HIGHLIGHT_WORDS = new Set([
+  "free", "fast", "simple", "trusted", "secure", "save", "instant", "easy", "guarantee", "support"
+]);
 const GENERIC_FONT_TOKENS = new Set([
   "sans-serif", "serif", "monospace", "system-ui", "cursive",
   "fantasy", "ui-sans-serif", "ui-serif", "ui-monospace"
@@ -91,6 +97,161 @@ function detectComponents($) {
   return uniqueValues(components, 8);
 }
 
+function extractCallToActions($, buttonLabels) {
+  const linkLabels = collectText($("a"), 20).filter((label) => CTA_PATTERN.test(label));
+  const ctaLabels = uniqueValues([...buttonLabels.filter((label) => CTA_PATTERN.test(label)), ...linkLabels], 8);
+  return ctaLabels;
+}
+
+function extractTrustSignals($) {
+  const trustLinks = uniqueValues(
+    $("a[href]")
+      .map((_, el) => {
+        const text = normalizeWhitespace($(el).text());
+        const href = ($(el).attr("href") ?? "").toLowerCase();
+        const candidate = `${text} ${href}`.trim();
+        return TRUST_PATTERN.test(candidate) ? (text || href) : "";
+      })
+      .get(),
+    8
+  );
+
+  const hasContactDetails = Boolean($("a[href^='mailto:'], a[href^='tel:'], address").length);
+  const hasTestimonials = Boolean(
+    $("[class*='testimonial'], [data-testid*='testimonial'], [class*='review'], [aria-label*='review']").length
+  );
+  const hasFaq = Boolean(
+    $("[id*='faq'], [class*='faq']").length ||
+    $("h2, h3, h4")
+      .map((_, el) => normalizeWhitespace($(el).text()))
+      .get()
+      .some((text) => FAQ_PATTERN.test(text))
+  );
+  const hasPolicyPages = trustLinks.some((value) => /privacy|terms|refund|returns|policy/i.test(value));
+
+  return {
+    trustLinks,
+    hasContactDetails,
+    hasTestimonials,
+    hasFaq,
+    hasPolicyPages
+  };
+}
+
+function assessAccessibility($) {
+  const imageCount = $("img").length;
+  const imagesWithAlt = $("img[alt]").length;
+  const altCoverage = imageCount ? Math.round((imagesWithAlt / imageCount) * 100) : 100;
+
+  const formFields = $("input:not([type='hidden']):not([type='submit']):not([type='button']), textarea, select");
+  let labeledFieldCount = 0;
+  formFields.each((_, el) => {
+    const id = $(el).attr("id");
+    const hasLinkedLabel = id
+      ? $("label")
+        .filter((__, labelEl) => ($(labelEl).attr("for") ?? "") === id)
+        .length > 0
+      : false;
+    const hasWrappedLabel = $(el).parents("label").length > 0;
+    const hasAriaLabel = Boolean($(el).attr("aria-label") || $(el).attr("aria-labelledby"));
+    const hasPlaceholder = Boolean($(el).attr("placeholder"));
+    if (hasLinkedLabel || hasWrappedLabel || hasAriaLabel || hasPlaceholder) {
+      labeledFieldCount += 1;
+    }
+  });
+
+  const fieldCount = formFields.length;
+  const formLabelCoverage = fieldCount ? Math.round((labeledFieldCount / fieldCount) * 100) : 100;
+
+  return {
+    imageCount,
+    imagesWithAlt,
+    altCoverage,
+    fieldCount,
+    labeledFieldCount,
+    formLabelCoverage,
+    hasViewportMeta: Boolean($("meta[name='viewport']").length)
+  };
+}
+
+function assessReadability($) {
+  const paragraphs = $("p")
+    .map((_, el) => normalizeWhitespace($(el).text()))
+    .get()
+    .filter((text) => text.length > 25);
+
+  const paragraphWordCounts = paragraphs.map((text) => text.split(/\s+/).filter(Boolean).length);
+  const avgParagraphWords = paragraphWordCounts.length
+    ? Math.round(paragraphWordCounts.reduce((sum, count) => sum + count, 0) / paragraphWordCounts.length)
+    : 0;
+  const longParagraphCount = paragraphWordCounts.filter((count) => count > 45).length;
+
+  const combinedText = normalizeWhitespace($("main, article, body").first().text() || $("body").text());
+  const words = combinedText.split(/\s+/).filter((token) => token.length > 1);
+  const sentenceCount = combinedText
+    .split(/[.!?]+/)
+    .map((value) => value.trim())
+    .filter(Boolean).length;
+  const avgWordsPerSentence = sentenceCount ? Math.round(words.length / sentenceCount) : 0;
+
+  return {
+    paragraphCount: paragraphs.length,
+    avgParagraphWords,
+    longParagraphCount,
+    wordCount: words.length,
+    sentenceCount,
+    avgWordsPerSentence
+  };
+}
+
+function assessHeadingFlow($) {
+  const headingLevels = $("h1, h2, h3, h4, h5, h6")
+    .map((_, el) => Number((el.tagName ?? "h1").slice(1)))
+    .get()
+    .filter((value) => Number.isFinite(value));
+
+  let headingJumpCount = 0;
+  for (let index = 1; index < headingLevels.length; index += 1) {
+    if (headingLevels[index] - headingLevels[index - 1] > 1) {
+      headingJumpCount += 1;
+    }
+  }
+
+  return {
+    headingLevels,
+    headingJumpCount
+  };
+}
+
+function assessFormComplexity($) {
+  const forms = $("form");
+  const fieldCounts = forms
+    .map((_, form) => $(form).find("input, textarea, select").length)
+    .get();
+  const complexForms = fieldCounts.filter((count) => count >= 6).length;
+
+  return {
+    formCount: forms.length,
+    complexForms
+  };
+}
+
+function collectHighlightTerms(textValues) {
+  const matches = [];
+  textValues.forEach((value) => {
+    value
+      .toLowerCase()
+      .split(/\W+/)
+      .forEach((token) => {
+        if (HIGHLIGHT_WORDS.has(token)) {
+          matches.push(token);
+        }
+      });
+  });
+
+  return uniqueValues(matches, 8);
+}
+
 async function fetchText(url) {
   let response;
   try {
@@ -148,6 +309,13 @@ async function extractPageData(url) {
     ],
     8
   );
+  const ctaLabels = extractCallToActions($, buttonLabels);
+  const trustSignals = extractTrustSignals($);
+  const accessibility = assessAccessibility($);
+  const readability = assessReadability($);
+  const headingFlow = assessHeadingFlow($);
+  const formComplexity = assessFormComplexity($);
+  const highlightTerms = collectHighlightTerms([...headings, ...navLabels, ...buttonLabels]);
 
   const notes = [];
   const pageTitle = normalizeWhitespace($("title").first().text()) || "Untitled page";
@@ -160,21 +328,34 @@ async function extractPageData(url) {
     images: $("img, svg, picture source").length,
     sections: $("section, article, main > div").length,
     navs: $("nav").length,
-    inputs: $("input, textarea, select").length
+    inputs: $("input, textarea, select").length,
+    ctas: ctaLabels.length,
+    trustLinks: trustSignals.trustLinks.length
   };
 
   if (!metaDescription) notes.push("No meta description was found in the HTML.");
   if (!$("h1").length) notes.push("No H1 heading was found on the page.");
   if ($("input[type='password']").length) notes.push("A password field was detected, so this page likely sits behind a login flow.");
   if (!buttonLabels.length && counts.forms === 0) notes.push("Few direct action controls were detected in the fetched HTML.");
+  if (trustSignals.trustLinks.length < 2) notes.push("Only a small number of trust-focused links were visible (privacy, terms, support, contact).");
+  if (accessibility.altCoverage < 70) notes.push(`Only ${accessibility.altCoverage}% of images include alt text in the fetched HTML.`);
+  if (accessibility.formLabelCoverage < 70) notes.push(`Form field labeling coverage is ${accessibility.formLabelCoverage}%, which may reduce form clarity.`);
+  if (headingFlow.headingJumpCount > 0) notes.push(`Heading levels skip hierarchy ${headingFlow.headingJumpCount} time(s), which may reduce scanability.`);
+  if (readability.longParagraphCount > 0) notes.push(`${readability.longParagraphCount} paragraph(s) look long for quick customer scanning.`);
 
   return {
     finalUrl, statusCode, pageTitle, metaDescription,
-    headings, navLabels, buttonLabels,
+    headings, navLabels, buttonLabels, ctaLabels,
     colors: collectColors(styleSources),
     fonts: collectFonts(styleSources),
     components: detectComponents($),
     notes: uniqueValues(notes, 6),
+    trustSignals,
+    accessibility,
+    readability,
+    headingFlow,
+    formComplexity,
+    highlightTerms,
     counts
   };
 }
@@ -209,76 +390,186 @@ function scoreWithinRange(value) {
 
 function buildInteractions(extracted) {
   const signals = [
-    ...extracted.buttonLabels.slice(0, 4).map((l) => `Action: ${l}`),
-    ...extracted.navLabels.slice(0, 3).map((l) => `Navigation: ${l}`)
+    ...extracted.ctaLabels.slice(0, 4).map((label) => `Customer action: ${label}`),
+    ...extracted.navLabels.slice(0, 2).map((label) => `Navigation label: ${label}`),
+    ...extracted.trustSignals.trustLinks.slice(0, 2).map((label) => `Trust cue: ${label}`)
   ];
-  if (!signals.length) signals.push("Minimal visible action labels detected");
+  if (!signals.length) signals.push("Few obvious customer actions are visible in the fetched HTML.");
   return signals.slice(0, 6);
 }
 
 function buildFindings(input, extracted, siteName) {
-  const structureFinding =
-    extracted.counts.headings > 0
-      ? `${siteName} exposes ${extracted.counts.headings} heading${extracted.counts.headings === 1 ? "" : "s"} and ${extracted.counts.sections} section-level block${extracted.counts.sections === 1 ? "" : "s"}, which gives the report real page structure to work from.`
-      : `${siteName} does not expose clear heading structure in the fetched HTML, so content hierarchy may be harder to read quickly.`;
+  const clarityDetail = extracted.counts.headings
+    ? `${siteName} shows ${extracted.counts.headings} headings and ${extracted.readability.paragraphCount} readable paragraph block${extracted.readability.paragraphCount === 1 ? "" : "s"}, which gives customers a scannable structure.`
+    : `${siteName} has weak visible heading structure in the fetched HTML, so customers may struggle to understand the page quickly.`;
 
-  const actionFinding =
-    extracted.counts.buttons + extracted.counts.forms > 0
-      ? `The fetched page includes ${extracted.counts.buttons} button${extracted.counts.buttons === 1 ? "" : "s"} and ${extracted.counts.forms} form${extracted.counts.forms === 1 ? "" : "s"}, which helps anchor the ${input.focusArea.toLowerCase()} review in real action points.`
-      : `The fetched page exposes very few obvious action controls, so the ${input.focusArea.toLowerCase()} review will lean more on structure and messaging than conversion paths.`;
+  const trustDetail = extracted.trustSignals.trustLinks.length || extracted.trustSignals.hasContactDetails
+    ? `We found trust cues such as ${extracted.trustSignals.trustLinks.slice(0, 2).join(", ") || "contact details"}, which help reduce purchase hesitation for new visitors.`
+    : "Very few trust cues (privacy, terms, support, contact) were visible, which can reduce confidence for first-time customers.";
 
-  const styleFinding =
-    extracted.colors.length || extracted.fonts.length
-      ? `Visible style signals include ${extracted.colors.length} color token${extracted.colors.length === 1 ? "" : "s"} and ${extracted.fonts.length} font family reference${extracted.fonts.length === 1 ? "" : "ies"} pulled from accessible HTML and CSS.`
-      : "Only limited style tokens were readable from the page source, so style extraction is still partial for pages that rely heavily on runtime styling or locked-down assets.";
+  const conversionDetail = extracted.ctaLabels.length
+    ? `Primary customer actions are visible (${extracted.ctaLabels.slice(0, 3).join(", ")}), with ${extracted.counts.forms} form${extracted.counts.forms === 1 ? "" : "s"} supporting next steps.`
+    : `Clear call-to-action labels were limited, so customers may not see an obvious next step after landing on this page.`;
+
+  const accessibilityDetail =
+    extracted.accessibility.altCoverage >= 70 && extracted.accessibility.formLabelCoverage >= 70
+      ? `Accessibility basics are in place: ${extracted.accessibility.altCoverage}% image alt coverage and ${extracted.accessibility.formLabelCoverage}% form label coverage in the fetched HTML.`
+      : `Accessibility comfort has gaps: ${extracted.accessibility.altCoverage}% image alt coverage and ${extracted.accessibility.formLabelCoverage}% form label coverage may affect clarity for some users.`;
 
   return [
-    { title: "Messaging and structure", detail: structureFinding, severity: extracted.counts.headings > 0 ? "low" : "high" },
-    { title: "Navigation and action cues", detail: actionFinding, severity: extracted.counts.buttons + extracted.counts.forms > 0 ? "low" : "medium" },
-    { title: "Visible style signals", detail: styleFinding, severity: extracted.colors.length || extracted.fonts.length ? "low" : "medium" }
+    {
+      title: "First impression clarity",
+      detail: clarityDetail,
+      severity: extracted.counts.headings > 0 && extracted.readability.longParagraphCount <= 2 ? "low" : "medium"
+    },
+    {
+      title: "Trust and reassurance",
+      detail: trustDetail,
+      severity: extracted.trustSignals.trustLinks.length >= 2 || extracted.trustSignals.hasContactDetails ? "low" : "high"
+    },
+    {
+      title: "Next-step clarity",
+      detail: conversionDetail,
+      severity: extracted.ctaLabels.length > 0 ? "low" : "high"
+    },
+    {
+      title: "Accessibility comfort",
+      detail: accessibilityDetail,
+      severity: extracted.accessibility.altCoverage >= 70 && extracted.accessibility.formLabelCoverage >= 70 ? "low" : "medium"
+    }
   ];
+}
+
+function buildRecommendations(extracted) {
+  const recommendations = [];
+
+  if (!extracted.counts.headings) {
+    recommendations.push("Add a clear H1 headline that states what the page offers in one sentence.");
+  }
+
+  if (extracted.ctaLabels.length === 0) {
+    recommendations.push("Add one strong primary call-to-action above the fold (for example: Book demo, Start free trial).");
+  } else if (extracted.formComplexity.complexForms > 0) {
+    recommendations.push("Simplify longer forms by reducing optional fields or splitting steps.");
+  }
+
+  if (extracted.trustSignals.trustLinks.length < 2 && !extracted.trustSignals.hasContactDetails) {
+    recommendations.push("Surface trust links (privacy, terms, support, contact) closer to key conversion areas.");
+  }
+
+  if (extracted.accessibility.altCoverage < 70) {
+    recommendations.push("Improve image alt text coverage so visual content remains understandable for all users.");
+  }
+
+  if (extracted.accessibility.formLabelCoverage < 70) {
+    recommendations.push("Add visible labels or ARIA labels for form fields to improve completion confidence.");
+  }
+
+  if (extracted.readability.longParagraphCount > 1) {
+    recommendations.push("Break long paragraphs into shorter blocks so visitors can scan key points faster.");
+  }
+
+  if (!recommendations.length) {
+    recommendations.push("Current page fundamentals look solid. Focus next on clearer value proof near the main CTA.");
+  }
+
+  return recommendations.slice(0, 4);
 }
 
 function buildReport(input, extracted) {
   const siteName = deriveSiteName(input.url);
   const sizeDetails = getSizeDetails(input.scanSize);
   const focusDetails = getFocusDetails(input.focusArea);
-  const structureScore = scoreWithinRange(52 + extracted.counts.headings * 6 + extracted.counts.sections * 3 + extracted.counts.navs * 4);
-  const actionScore = scoreWithinRange(48 + extracted.counts.buttons * 7 + extracted.counts.forms * 8 + Math.min(extracted.counts.links, 20));
-  const styleScore = scoreWithinRange(44 + extracted.colors.length * 6 + extracted.fonts.length * 8 + extracted.components.length * 4);
+  const recommendations = buildRecommendations(extracted);
+  const clarityScore = scoreWithinRange(
+    42 +
+    extracted.counts.headings * 6 +
+    Math.min(extracted.readability.paragraphCount, 10) * 2 +
+    (extracted.metaDescription ? 8 : 0) -
+    extracted.headingFlow.headingJumpCount * 5 -
+    extracted.readability.longParagraphCount * 2
+  );
+  const trustScore = scoreWithinRange(
+    40 +
+    extracted.trustSignals.trustLinks.length * 8 +
+    (extracted.trustSignals.hasContactDetails ? 9 : 0) +
+    (extracted.trustSignals.hasTestimonials ? 7 : 0) +
+    (extracted.trustSignals.hasFaq ? 5 : 0)
+  );
+  const actionScore = scoreWithinRange(
+    38 +
+    extracted.ctaLabels.length * 9 +
+    extracted.counts.buttons * 3 +
+    extracted.counts.forms * 5 -
+    extracted.formComplexity.complexForms * 6
+  );
+  const accessibilityScore = scoreWithinRange(
+    35 +
+    Math.round(extracted.accessibility.altCoverage * 0.3) +
+    Math.round(extracted.accessibility.formLabelCoverage * 0.35) +
+    (extracted.accessibility.hasViewportMeta ? 8 : 0)
+  );
 
   return {
     siteName,
     scannedAt: new Date().toISOString(),
     scope: sizeDetails.scope,
-    summary: `${siteName} was fetched successfully and the report now reflects real page signals from ${extracted.finalUrl}. We found ${extracted.counts.links} links, ${extracted.counts.buttons} buttons, ${extracted.counts.forms} forms, and ${extracted.counts.headings} headings, then shaped the review around ${input.focusArea.toLowerCase()}.`,
+    summary: `This review reflects live page signals from ${extracted.finalUrl}. From a customer point of view, we checked clarity, trust, next-step actions, and accessibility comfort based on ${extracted.counts.links} links, ${extracted.counts.buttons} buttons, ${extracted.counts.forms} forms, and ${extracted.counts.headings} headings.`,
     scores: [
-      { label: "Page structure", value: structureScore, trend: `${extracted.counts.headings} headings and ${extracted.counts.sections} sections detected` },
-      { label: "Style coverage", value: styleScore, trend: `${extracted.colors.length} colors and ${extracted.fonts.length} font references detected` },
-      { label: "Action clarity", value: actionScore, trend: `${extracted.counts.buttons} buttons and ${extracted.counts.forms} forms detected` }
+      {
+        label: "Message clarity",
+        value: clarityScore,
+        trend: `${extracted.counts.headings} headings, ${extracted.readability.paragraphCount} paragraph blocks`
+      },
+      {
+        label: "Trust confidence",
+        value: trustScore,
+        trend: `${extracted.trustSignals.trustLinks.length} trust links, FAQ: ${extracted.trustSignals.hasFaq ? "yes" : "no"}`
+      },
+      {
+        label: "Action readiness",
+        value: actionScore,
+        trend: `${extracted.ctaLabels.length} CTA labels, ${extracted.counts.forms} forms`
+      },
+      {
+        label: "Accessibility comfort",
+        value: accessibilityScore,
+        trend: `Alt text ${extracted.accessibility.altCoverage}%, form labels ${extracted.accessibility.formLabelCoverage}%`
+      }
     ],
     tokenGroups: [
       {
-        label: "Detected style tokens",
-        values: extracted.colors.length || extracted.fonts.length
-          ? [...extracted.colors.slice(0, 5), ...extracted.fonts.slice(0, 3)]
-          : ["No readable colors", "No readable fonts"]
+        label: "Customer actions detected",
+        values: extracted.ctaLabels.length
+          ? extracted.ctaLabels
+          : ["No strong CTA label found in the fetched HTML"]
       },
       {
-        label: "Detected page structure",
+        label: "Trust signals detected",
         values: [
-          `${extracted.counts.headings} headings`, `${extracted.counts.links} links`,
-          `${extracted.counts.buttons} buttons`, `${extracted.counts.forms} forms`,
-          `${extracted.counts.images} visual assets`
+          ...extracted.trustSignals.trustLinks.slice(0, 5),
+          `Contact details visible: ${extracted.trustSignals.hasContactDetails ? "Yes" : "No"}`,
+          `Testimonials visible: ${extracted.trustSignals.hasTestimonials ? "Yes" : "No"}`
         ]
       },
       {
+        label: "Top recommendations",
+        values: recommendations
+      },
+      {
         label: "Review setup",
-        values: [sizeDetails.detail, input.loginMode, focusDetails.checks[0], `Up to ${sizeDetails.pageLimit} page${sizeDetails.pageLimit === 1 ? "" : "s"}`]
+        values: [
+          sizeDetails.detail,
+          input.loginMode,
+          focusDetails.checks[0],
+          `Up to ${sizeDetails.pageLimit} page${sizeDetails.pageLimit === 1 ? "" : "s"}`
+        ]
       }
     ],
     findings: buildFindings(input, extracted, siteName),
-    components: extracted.components.length ? extracted.components : focusDetails.components,
+    components: extracted.components.length
+      ? extracted.components
+      : [...focusDetails.components, "Customer trust cues", "Primary action blocks"],
     interactions: buildInteractions(extracted),
     source: {
       finalUrl: extracted.finalUrl,
@@ -292,7 +583,20 @@ function buildReport(input, extracted) {
       imageCount: extracted.counts.images,
       colors: extracted.colors,
       fonts: extracted.fonts,
-      notes: extracted.notes
+      notes: extracted.notes,
+      customerSignals: {
+        ctaLabels: extracted.ctaLabels,
+        trustSignals: extracted.trustSignals.trustLinks,
+        highlightWords: extracted.highlightTerms,
+        readability: {
+          paragraphCount: extracted.readability.paragraphCount,
+          avgParagraphWords: extracted.readability.avgParagraphWords
+        },
+        accessibility: {
+          altCoverage: extracted.accessibility.altCoverage,
+          formLabelCoverage: extracted.accessibility.formLabelCoverage
+        }
+      }
     }
   };
 }

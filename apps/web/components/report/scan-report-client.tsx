@@ -23,13 +23,13 @@ function ProgressView({ scan }: { scan: ScanRecord }) {
           <p className="text-sm uppercase tracking-[0.3em] text-white/45">Scan in progress</p>
           <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">Reviewing {scan.siteName}</h1>
           <p className="mt-4 max-w-3xl text-base leading-8 text-white/68">
-            {progressCopy} Syntellia is pulling the page title, metadata, links, buttons, forms, and any readable style tokens before building the full report.
+            {progressCopy} Syntellia is collecting structure, trust cues, calls-to-action, readability, accessibility hints, and visible style tokens before building the customer-facing report.
           </p>
           <div className="mt-8 grid gap-3 md:grid-cols-3">
             {[
               "Fetching the page HTML",
-              "Reading structure and action points",
-              "Pulling visible style signals"
+              "Scoring clarity, trust, and next-step signals",
+              "Building plain-language recommendations"
             ].map((step, index) => (
               <div key={step} className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/76">
                 <div className="text-xs uppercase tracking-[0.24em] text-white/40">Step {index + 1}</div>

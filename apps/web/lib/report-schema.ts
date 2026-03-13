@@ -28,6 +28,19 @@ export type ExtractedPageSource = {
   colors: string[];
   fonts: string[];
   notes: string[];
+  customerSignals?: {
+    ctaLabels: string[];
+    trustSignals: string[];
+    highlightWords: string[];
+    readability: {
+      paragraphCount: number;
+      avgParagraphWords: number;
+    };
+    accessibility: {
+      altCoverage: number;
+      formLabelCoverage: number;
+    };
+  };
 };
 
 export type ScanReport = {
