@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ShellCard } from "@/components/ui/shell-card";
-import { createScanViaApi } from "@/lib/scan-api-client";
+import { createScanViaApi, trackAnalyticsEvent } from "@/lib/scan-api-client";
 
 const highlights = [
   {
@@ -116,7 +116,8 @@ export default function NewScanPage() {
     url: "",
     scanSize: "Standard review",
     loginMode: "No login needed",
-    focusArea: "Overall feel"
+    focusArea: "Overall feel",
+    projectName: "General"
   });
 
   const updateForm = (field: keyof typeof form, value: string) => {
@@ -129,9 +130,19 @@ export default function NewScanPage() {
     startTransition(async () => {
       try {
         const scan = await createScanViaApi(form);
+        void trackAnalyticsEvent("scan_created", {
+          scanId: scan.id,
+          projectName: form.projectName,
+          scanSize: form.scanSize,
+          focusArea: form.focusArea
+        });
         router.push(`/app/scan/view?scanId=${scan.id}`);
       } catch (scanError) {
         setError(scanError instanceof Error ? scanError.message : "Unable to queue scan.");
+        void trackAnalyticsEvent("scan_create_failed", {
+          scanSize: form.scanSize,
+          focusArea: form.focusArea
+        });
       }
     });
   };
@@ -164,6 +175,17 @@ export default function NewScanPage() {
               type="url"
               value={form.url}
               onChange={(event) => updateForm("url", event.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm uppercase tracking-[0.24em] text-white/42">Project name</label>
+            <input
+              className="mt-3 w-full rounded-[22px] border border-white/10 bg-white/6 px-5 py-4 text-base text-white outline-none transition placeholder:text-white/28 focus:border-[#7cf5d4]/45"
+              placeholder="General"
+              type="text"
+              value={form.projectName}
+              maxLength={64}
+              onChange={(event) => updateForm("projectName", event.target.value)}
             />
           </div>
           <ChoiceGroup title="How broad should the review be?" options={scanSizes} value={form.scanSize} onChange={(value) => updateForm("scanSize", value)} />

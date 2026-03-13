@@ -1,6 +1,6 @@
 const { createClient } = require("@supabase/supabase-js");
 let publicClient = null;
-let client = null;
+let adminClient = null;
 
 function readSupabaseUrl() {
   return process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
@@ -8,6 +8,9 @@ function readSupabaseUrl() {
 
 function readSupabasePublishableKey() {
   return process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "";
+}
+function readSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 }
 
 function ensurePublicConfig() {
@@ -35,6 +38,25 @@ function getSupabasePublicClient() {
 
   return publicClient;
 }
+function getSupabaseAdminClient() {
+  if (adminClient) return adminClient;
+
+  const url = readSupabaseUrl();
+  const serviceRoleKey = readSupabaseServiceRoleKey();
+
+  if (!url || !serviceRoleKey) {
+    throw new Error("Missing Supabase service credentials. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
+  }
+
+  adminClient = createClient(url, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    }
+  });
+
+  return adminClient;
+}
 
 function createSupabaseUserClient(accessToken) {
   if (!accessToken) {
@@ -57,6 +79,7 @@ function createSupabaseUserClient(accessToken) {
 }
 
 module.exports = {
+  getSupabaseAdminClient,
   getSupabasePublicClient,
   createSupabaseUserClient
 };

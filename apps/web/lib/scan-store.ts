@@ -59,12 +59,14 @@ type ScanRow = {
   scan_size: string;
   login_mode: string;
   focus_area: string;
+  project_name: string | null;
   page_limit: number;
   status: ScanStatus;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
   error: string | null;
+  share_token: string | null;
   report: ScanReport | null;
 };
 
@@ -77,12 +79,14 @@ function mapRowToRecord(row: ScanRow): ScanRecord {
     scanSize: row.scan_size,
     loginMode: row.login_mode,
     focusArea: row.focus_area,
+    projectName: row.project_name ?? "General",
     pageLimit: row.page_limit,
     status: row.status,
     createdAt: row.created_at,
     startedAt: row.started_at ?? undefined,
     completedAt: row.completed_at ?? undefined,
     error: row.error ?? undefined,
+    shareToken: row.share_token ?? undefined,
     report: row.report
   };
 }
@@ -96,12 +100,14 @@ function mapRecordToRowInsert(record: ScanRecord): ScanRow {
     scan_size: record.scanSize,
     login_mode: record.loginMode,
     focus_area: record.focusArea,
+    project_name: record.projectName,
     page_limit: record.pageLimit,
     status: record.status,
     created_at: record.createdAt,
     started_at: record.startedAt ?? null,
     completed_at: record.completedAt ?? null,
     error: record.error ?? null,
+    share_token: record.shareToken ?? null,
     report: record.report
   };
 }
@@ -114,12 +120,14 @@ function mapRecordToRowUpdate(record: ScanRecord) {
     scan_size: record.scanSize,
     login_mode: record.loginMode,
     focus_area: record.focusArea,
+    project_name: record.projectName,
     page_limit: record.pageLimit,
     status: record.status,
     created_at: record.createdAt,
     started_at: record.startedAt ?? null,
     completed_at: record.completedAt ?? null,
     error: record.error ?? null,
+    share_token: record.shareToken ?? null,
     report: record.report
   };
 }
@@ -351,6 +359,7 @@ export async function createScan(userId: string, input: CreateScanInput) {
     scanSize: input.scanSize,
     loginMode: input.loginMode,
     focusArea: input.focusArea,
+    projectName: input.projectName?.trim() || "General",
     pageLimit: sizeDetails.pageLimit,
     status: "Queued",
     createdAt: new Date().toISOString(),

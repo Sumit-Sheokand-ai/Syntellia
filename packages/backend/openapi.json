@@ -1,0 +1,239 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Syntellia API",
+    "version": "1.0.0",
+    "description": "Authenticated scan lifecycle API for creating, listing, and retrieving scan reports."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "health"
+    },
+    {
+      "name": "scans"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["health"],
+        "summary": "Service health status",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "service": { "type": "string" },
+                    "ts": { "type": "string", "format": "date-time" }
+                  },
+                  "required": ["ok", "service", "ts"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scans": {
+      "get": {
+        "tags": ["scans"],
+        "summary": "List scans for the authenticated user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Scans fetched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scans": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ScanRecord" }
+                    }
+                  },
+                  "required": ["scans"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/AuthError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      },
+      "post": {
+        "tags": ["scans"],
+        "summary": "Create a new scan",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateScanInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scan created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScanRecord" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ApiError" },
+          "401": { "$ref": "#/components/responses/AuthError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/scans/{scanId}": {
+      "get": {
+        "tags": ["scans"],
+        "summary": "Fetch a single scan by id",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "scanId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scan found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScanRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/AuthError" },
+          "404": { "$ref": "#/components/responses/ApiError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "responses": {
+      "AuthError": {
+        "description": "Authentication failed",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "RateLimitError": {
+        "description": "Rate limit exceeded",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "ApiError": {
+        "description": "Request failed",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CreateScanInput": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "scanSize": {
+            "type": "string",
+            "enum": ["Quick check", "Standard review", "Full walkthrough"]
+          },
+          "loginMode": {
+            "type": "string",
+            "enum": ["No login needed", "This page has a login", "I'm not sure"]
+          },
+          "focusArea": {
+            "type": "string",
+            "enum": ["Overall feel", "Look and brand", "Content clarity", "Navigation and actions"]
+          },
+          "projectName": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": ["url"]
+      },
+      "ScanRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "siteName": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "scanSize": { "type": "string" },
+          "loginMode": { "type": "string" },
+          "focusArea": { "type": "string" },
+          "projectName": { "type": "string" },
+          "pageLimit": { "type": "integer", "minimum": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["Queued", "Running", "Completed", "Failed"]
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "startedAt": { "type": ["string", "null"], "format": "date-time" },
+          "completedAt": { "type": ["string", "null"], "format": "date-time" },
+          "error": { "type": ["string", "null"] },
+          "shareToken": { "type": ["string", "null"] },
+          "report": { "type": ["object", "null"] }
+        },
+        "required": [
+          "id",
+          "userId",
+          "siteName",
+          "url",
+          "scanSize",
+          "loginMode",
+          "focusArea",
+          "projectName",
+          "pageLimit",
+          "status",
+          "createdAt",
+          "report"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "code": { "type": "string" },
+          "requestId": { "type": "string" }
+        },
+        "required": ["error", "code"]
+      }
+    }
+  }
+}

@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { ReportOverview } from "@/components/report/report-overview";
 import { ShellCard } from "@/components/ui/shell-card";
 import type { ScanRecord } from "@/lib/scan-types";
-import { getScanViaApi } from "@/lib/scan-api-client";
+import {
+  createShareLinkViaApi,
+  getScanViaApi,
+  trackAnalyticsEvent
+} from "@/lib/scan-api-client";
 
 type ScanReportClientProps = {
   initialScan: ScanRecord;
@@ -75,6 +79,9 @@ function FailureView({ scan }: { scan: ScanRecord }) {
 
 export function ScanReportClient({ initialScan }: ScanReportClientProps) {
   const [scan, setScan] = useState(initialScan);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [isPreparingShare, setIsPreparingShare] = useState(false);
 
   useEffect(() => {
     if (scan.status === "Completed" || scan.status === "Failed") {
@@ -92,6 +99,56 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
 
     return () => window.clearInterval(intervalId);
   }, [scan.id, scan.status]);
+  useEffect(() => {
+    if (!scan.shareToken || typeof window === "undefined") return;
+    const url = new URL(`/shared/view?token=${encodeURIComponent(scan.shareToken)}`, window.location.origin);
+    setShareUrl(url.toString());
+  }, [scan.shareToken]);
+
+  useEffect(() => {
+    if (scan.status !== "Completed") return;
+    void trackAnalyticsEvent("scan_report_viewed", {
+      scanId: scan.id,
+      projectName: scan.projectName
+    });
+  }, [scan.id, scan.projectName, scan.status]);
+
+  const prepareShareLink = async () => {
+    try {
+      setIsPreparingShare(true);
+      setShareNotice(null);
+
+      let sharePath = scan.shareToken
+        ? `/shared/view?token=${encodeURIComponent(scan.shareToken)}`
+        : "";
+
+      if (!sharePath) {
+        const created = await createShareLinkViaApi(scan.id);
+        sharePath = created.sharePath;
+      }
+
+      if (typeof window === "undefined") return;
+
+      const shareLink = new URL(sharePath, window.location.origin).toString();
+      setShareUrl(shareLink);
+
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareLink);
+        setShareNotice("Share link copied to clipboard.");
+      } else {
+        setShareNotice("Share link is ready.");
+      }
+
+      void trackAnalyticsEvent("scan_share_link_created", {
+        scanId: scan.id,
+        projectName: scan.projectName
+      });
+    } catch (error) {
+      setShareNotice(error instanceof Error ? error.message : "Unable to prepare share link.");
+    } finally {
+      setIsPreparingShare(false);
+    }
+  };
 
   if (scan.status === "Failed") {
     return <FailureView scan={scan} />;
@@ -100,6 +157,33 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
   if (scan.status !== "Completed" || !scan.report) {
     return <ProgressView scan={scan} />;
   }
-
-  return <ReportOverview report={scan.report} scanMeta={scan} />;
+  return (
+    <div className="space-y-6">
+      <ShellCard className="p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.24em] text-white/45">Share report</p>
+            <p className="mt-2 text-sm text-white/66">
+              Create a link to share this completed report with stakeholders who do not need a login.
+            </p>
+            {shareUrl ? (
+              <p className="mt-3 text-xs break-all text-white/58">{shareUrl}</p>
+            ) : null}
+            {shareNotice ? (
+              <p className="mt-3 text-sm text-[#7cf5d4]">{shareNotice}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={prepareShareLink}
+            disabled={isPreparingShare}
+          >
+            {isPreparingShare ? "Preparing link..." : shareUrl ? "Copy share link" : "Create share link"}
+          </button>
+        </div>
+      </ShellCard>
+      <ReportOverview report={scan.report} scanMeta={scan} />
+    </div>
+  );
 }

@@ -10,6 +10,7 @@ type ReportOverviewProps = {
     pageLimit: number;
     loginMode: string;
     focusArea: string;
+    projectName?: string;
     status: string;
     error?: string;
   };
@@ -18,6 +19,11 @@ type ReportOverviewProps = {
 function getSeverityLabel(severity: "high" | "medium" | "low") {
   if (severity === "high") return "High impact";
   if (severity === "medium") return "Medium impact";
+  return "Low impact";
+}
+function getImpactLabel(impact: "high" | "medium" | "low") {
+  if (impact === "high") return "High impact";
+  if (impact === "medium") return "Medium impact";
   return "Low impact";
 }
 
@@ -42,9 +48,15 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           <p className="text-sm uppercase tracking-[0.3em] text-white/45">Review snapshot</p>
           <div className="mt-6 space-y-3 text-sm text-white/72">
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Status: {scanMeta?.status ?? "Created"}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Project: {scanMeta?.projectName ?? "General"}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan size: {scanMeta?.scanSize ?? report.scope}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Pages reviewed: up to {scanMeta?.pageLimit ?? 1}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Login: {scanMeta?.loginMode ?? "No login needed"}</div>
+            {report.source.crawl ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                Crawl: {report.source.crawl.pagesScanned} scanned, depth {report.source.crawl.maxReachedDepth}/{report.source.crawl.maxDepth}
+              </div>
+            ) : null}
           </div>
           <p className="mt-6 text-sm uppercase tracking-[0.3em] text-white/45">Customer journey cues</p>
           <div className="mt-6 grid grid-cols-2 gap-3 text-sm text-white/75">
@@ -137,6 +149,41 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 </div>
               </div>
             ) : null}
+            {report.source.crawl ? (
+              <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <div className="text-sm uppercase tracking-[0.24em] text-white/45">Crawl coverage</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 text-sm text-white/75">
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    Pages scanned: {report.source.crawl.pagesScanned}
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    Pages attempted: {report.source.crawl.pagesAttempted}
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    Robots blocked: {report.source.crawl.blockedByRobots}
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
+                    Mode: {report.source.crawl.executionMode}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {report.source.pages?.length ? (
+              <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <div className="text-sm uppercase tracking-[0.24em] text-white/45">Scanned pages</div>
+                <div className="mt-4 space-y-3">
+                  {report.source.pages.slice(0, 6).map((page) => (
+                    <div key={page.url} className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/75">
+                      <div className="text-white">{page.pageTitle}</div>
+                      <div className="mt-1 text-white/55">{page.url}</div>
+                      <div className="mt-2 text-xs uppercase tracking-[0.16em] text-white/45">
+                        Status {page.statusCode} · CTA {page.ctaCount} · Trust cues {page.trustSignalCount}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </ShellCard>
         <ShellCard className="p-8">
@@ -203,6 +250,22 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           <h2 className="text-2xl font-semibold text-white">What to improve first</h2>
           <p className="text-sm text-white/52">Plain-language actions prioritized by customer impact</p>
         </div>
+        {report.prioritizedActions?.length ? (
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {report.prioritizedActions.map((action) => (
+              <div key={action.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
+                  {getImpactLabel(action.impact)} · {action.effort} effort
+                </div>
+                <h3 className="mt-4 text-xl font-medium text-white">{action.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-white/65">{action.detail}</p>
+                <p className="mt-3 text-xs uppercase tracking-[0.16em] text-white/45">
+                  Confidence {Math.round(action.confidence * 100)}%
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           {report.findings.map((finding) => (
             <div key={finding.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">

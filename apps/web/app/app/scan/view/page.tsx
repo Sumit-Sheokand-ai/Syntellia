@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ScanReportClient } from "@/components/report/scan-report-client";
 import { ShellCard } from "@/components/ui/shell-card";
-import { getScanViaApi } from "@/lib/scan-api-client";
+import { getScanViaApi, trackAnalyticsEvent } from "@/lib/scan-api-client";
 import type { ScanRecord } from "@/lib/scan-types";
 
 export default function ScanViewPage() {
@@ -18,6 +18,8 @@ export default function ScanViewPage() {
       setError("No scan ID was provided in the URL.");
       return;
     }
+
+    void trackAnalyticsEvent("scan_view_opened", { scanId });
 
     getScanViaApi(scanId)
       .then(setScan)

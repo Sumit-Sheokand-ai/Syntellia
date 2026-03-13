@@ -3,6 +3,7 @@ export type CreateScanInput = {
   scanSize: string;
   loginMode: string;
   focusArea: string;
+  projectName?: string;
 };
 
 export type ScanStatus = "Queued" | "Running" | "Completed" | "Failed";
@@ -15,11 +16,22 @@ export type ScanRecord = {
   scanSize: string;
   loginMode: string;
   focusArea: string;
+  projectName: string;
   pageLimit: number;
   status: ScanStatus;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
   error?: string;
+  shareToken?: string;
   report: import("@/lib/report-schema").ScanReport | null;
+};
+export type SharedScanRecord = Omit<ScanRecord, "userId">;
+
+export type EntitlementSummary = {
+  planName: string;
+  monthlyScanLimit: number;
+  monthlyScansUsed: number;
+  remainingScans: number;
+  periodStart: string;
 };
