@@ -1,20 +1,45 @@
+"use client";
+
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AccountMenu } from "@/components/auth/account-menu";
-import { createServerSupabaseClient, hasSupabaseAuthEnv } from "@/lib/supabase-server";
+import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  if (!hasSupabaseAuthEnv()) {
-    redirect("/");
-  }
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
 
-  if (!user) {
-    redirect("/auth/login");
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+
+    supabase.auth.getSession().then((result: { data: { session: Session | null } }) => {
+      const session = result.data.session;
+      if (!session?.user) {
+        router.replace("/auth/login");
+      } else {
+        setEmail(session.user.email ?? "Signed in");
+        setChecking(false);
+      }
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      if (!session?.user) {
+        router.replace("/auth/login");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
+
+  if (checking) {
+    return null;
   }
+
   return (
     <div className="min-h-screen px-6 py-8 md:px-10 xl:px-14">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -28,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/app/dashboard" className="rounded-full border border-white/10 px-4 py-2 hover:bg-white/6">Dashboard</Link>
             <Link href="/app/scan/new" className="rounded-full border border-white/10 px-4 py-2 hover:bg-white/6">Start scan</Link>
           </nav>
-          <AccountMenu email={user.email ?? "Signed in"} />
+          <AccountMenu email={email ?? "Signed in"} />
         </header>
         {children}
       </div>

@@ -10,6 +10,9 @@
     "start": "npm run start --workspace @syntellia/web",
     "build": "npm run build --workspace @syntellia/web",
     "lint": "npm run lint --workspace @syntellia/web",
-    "worker:dev": "npm run dev --workspace @syntellia/worker"
+    "backend:dev": "npm run dev --workspace @syntellia/backend",
+    "backend:start": "npm run start --workspace @syntellia/backend",
+    "worker:dev": "npm run dev --workspace @syntellia/worker",
+    "worker:start": "npm run start --workspace @syntellia/worker"
   }
 }

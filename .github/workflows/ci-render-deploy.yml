@@ -32,22 +32,69 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build
+      - name: Build static frontend
+        env:
+          # Adjust NEXT_PUBLIC_BASE_PATH to /RepoName if deploying to a GitHub
+          # Pages project site (e.g. username.github.io/Syntellia).
+          # Leave empty for a custom domain or username.github.io root site.
+          NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH }}
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
-  deploy:
-    name: Deploy to Render
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-render:
+    name: Deploy scanner runtime to Render
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Render deploy hook
+      - name: Trigger Render deploy hooks
         env:
+          RENDER_BACKEND_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}
+          RENDER_WORKER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_WORKER_DEPLOY_HOOK_URL }}
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "Missing repository secret: RENDER_DEPLOY_HOOK_URL"
+          if [ -n "$RENDER_BACKEND_DEPLOY_HOOK_URL" ] && [ -n "$RENDER_WORKER_DEPLOY_HOOK_URL" ]; then
+            curl --fail --show-error --silent -X POST "$RENDER_BACKEND_DEPLOY_HOOK_URL"
+            curl --fail --show-error --silent -X POST "$RENDER_WORKER_DEPLOY_HOOK_URL"
+            exit 0
+          fi
+
+          if [ -n "$RENDER_BACKEND_DEPLOY_HOOK_URL" ] || [ -n "$RENDER_WORKER_DEPLOY_HOOK_URL" ]; then
+            echo "Set both repository secrets together: RENDER_BACKEND_DEPLOY_HOOK_URL and RENDER_WORKER_DEPLOY_HOOK_URL"
             exit 1
           fi
-          curl --fail --show-error --silent -X POST "$RENDER_DEPLOY_HOOK_URL"
+
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Using legacy RENDER_DEPLOY_HOOK_URL. Migrate to backend+worker hooks."
+            curl --fail --show-error --silent -X POST "$RENDER_DEPLOY_HOOK_URL"
+            exit 0
+          fi
+
+          echo "No Render deploy hook secrets configured; skipping hook trigger (auto-deploy can still handle deploys)."
+          exit 0

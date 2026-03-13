@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+import { toAbsoluteAppUrl } from "@/lib/base-path";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function LoginPage() {
     setError(null);
     setIsPending(true);
     const supabase = createBrowserSupabaseClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const redirectTo = toAbsoluteAppUrl("/auth/callback", { next: nextPath });
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo }

@@ -1,5 +1,5 @@
 {
-  "name": "@syntellia/worker",
+  "name": "@syntellia/backend",
   "private": true,
   "scripts": {
     "dev": "node --watch src/index.js",
@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",
-    "cheerio": "^1.0.0"
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
   }
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ReportOverview } from "@/components/report/report-overview";
 import { ShellCard } from "@/components/ui/shell-card";
 import type { ScanRecord } from "@/lib/scan-types";
+import { getScanViaApi } from "@/lib/scan-api-client";
 
 type ScanReportClientProps = {
   initialScan: ScanRecord;
@@ -81,14 +82,12 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
     }
 
     const intervalId = window.setInterval(async () => {
-      const response = await fetch(`/api/scans/${scan.id}`, { cache: "no-store" });
-
-      if (!response.ok) {
-        return;
+      try {
+        const nextScan = await getScanViaApi(scan.id);
+        setScan(nextScan);
+      } catch {
+        // ignore transient poll errors
       }
-
-      const nextScan = (await response.json()) as ScanRecord;
-      setScan(nextScan);
     }, 1500);
 
     return () => window.clearInterval(intervalId);

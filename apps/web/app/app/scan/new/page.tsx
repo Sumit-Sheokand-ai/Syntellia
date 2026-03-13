@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ShellCard } from "@/components/ui/shell-card";
+import { createScanViaApi } from "@/lib/scan-api-client";
 
 const highlights = [
   {
@@ -127,20 +128,8 @@ export default function NewScanPage() {
 
     startTransition(async () => {
       try {
-        const response = await fetch("/api/scans", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(form)
-        });
-
-        if (!response.ok) {
-          throw new Error("Unable to queue scan.");
-        }
-
-        const payload = (await response.json()) as { id: string };
-        router.push(`/app/scan/${payload.id}`);
+        const scan = await createScanViaApi(form);
+        router.push(`/app/scan/view?scanId=${scan.id}`);
       } catch (scanError) {
         setError(scanError instanceof Error ? scanError.message : "Unable to queue scan.");
       }
