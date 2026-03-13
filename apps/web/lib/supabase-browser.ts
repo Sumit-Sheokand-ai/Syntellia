@@ -1,8 +1,8 @@
 "use client";
 
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 
-let cachedClient: ReturnType<typeof createBrowserClient> | null = null;
+let cachedClient: ReturnType<typeof createClient> | null = null;
 
 function readSupabaseUrl() {
   return process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
@@ -28,6 +28,14 @@ export function createBrowserSupabaseClient() {
     throw new Error("Missing VITE_SUPABASE_ANON_KEY (or SUPABASE_PUBLISHABLE_KEY) for browser auth.");
   }
 
-  cachedClient = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  cachedClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      flowType: "pkce",
+      persistSession: true,
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      storage: window.localStorage
+    }
+  });
   return cachedClient;
 }

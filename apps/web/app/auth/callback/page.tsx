@@ -1,29 +1,55 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const hasRunRef = useRef(false);
 
   useEffect(() => {
+    if (hasRunRef.current) {
+      return;
+    }
+
+    hasRunRef.current = true;
     const run = async () => {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
       const requestedNext = url.searchParams.get("next");
       const safeNext = requestedNext && requestedNext.startsWith("/") ? requestedNext : "/app/dashboard";
+      const supabase = createBrowserSupabaseClient();
 
       if (!code) {
-        router.replace(safeNext);
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          router.replace(safeNext);
+          router.refresh();
+          return;
+        }
+
+        setError("Authentication session could not be established. Please try signing in again.");
         return;
       }
 
-      const supabase = createBrowserSupabaseClient();
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
       if (exchangeError) {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          router.replace(safeNext);
+          router.refresh();
+          return;
+        }
+
         setError(exchangeError.message);
         return;
       }
