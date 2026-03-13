@@ -6,7 +6,7 @@ const scanRouter = Router();
 
 scanRouter.get("/scans", requireAuth, async (req, res) => {
   try {
-    const scans = await listScans(req.user.id);
+    const scans = await listScans(req.user.id, req.accessToken);
     res.json({ scans });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -27,7 +27,7 @@ scanRouter.post("/scans", requireAuth, async (req, res) => {
   }
 
   try {
-    const scan = await createScan(req.user.id, {
+    const scan = await createScan(req.user.id, req.accessToken, {
       url,
       scanSize: scanSize ?? "Standard review",
       loginMode: loginMode ?? "No login needed",
@@ -41,7 +41,7 @@ scanRouter.post("/scans", requireAuth, async (req, res) => {
 
 scanRouter.get("/scans/:scanId", requireAuth, async (req, res) => {
   try {
-    const scan = await getScan(req.user.id, req.params.scanId);
+    const scan = await getScan(req.user.id, req.accessToken, req.params.scanId);
     if (!scan) return res.status(404).json({ error: "Scan not found." });
     res.json(scan);
   } catch (error) {

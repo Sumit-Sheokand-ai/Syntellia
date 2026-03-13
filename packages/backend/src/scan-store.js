@@ -1,4 +1,4 @@
-const { getSupabaseAdminClient } = require("./db");
+const { createSupabaseUserClient } = require("./db");
 
 const sizeConfig = {
   "Quick check": { pageLimit: 1 },
@@ -43,7 +43,7 @@ function mapRow(row) {
   };
 }
 
-async function createScan(userId, input) {
+async function createScan(userId, accessToken, input) {
   const id = `scan-${Math.random().toString(36).slice(2, 10)}`;
   const { pageLimit } = getSizeDetails(input.scanSize);
 
@@ -64,15 +64,15 @@ async function createScan(userId, input) {
     report: null
   };
 
-  const supabase = getSupabaseAdminClient();
+  const supabase = createSupabaseUserClient(accessToken);
   const { data, error } = await supabase.from("scans").insert(row).select("*").single();
 
   if (error) throw new Error(`Unable to create scan: ${error.message}`);
   return mapRow(data);
 }
 
-async function getScan(userId, scanId) {
-  const supabase = getSupabaseAdminClient();
+async function getScan(userId, accessToken, scanId) {
+  const supabase = createSupabaseUserClient(accessToken);
   const { data, error } = await supabase
     .from("scans")
     .select("*")
@@ -84,8 +84,8 @@ async function getScan(userId, scanId) {
   return data ? mapRow(data) : null;
 }
 
-async function listScans(userId) {
-  const supabase = getSupabaseAdminClient();
+async function listScans(userId, accessToken) {
+  const supabase = createSupabaseUserClient(accessToken);
   const { data, error } = await supabase
     .from("scans")
     .select("*")

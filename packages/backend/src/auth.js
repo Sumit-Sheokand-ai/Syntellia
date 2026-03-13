@@ -1,4 +1,4 @@
-const { getSupabaseAdminClient } = require("./db");
+const { getSupabasePublicClient } = require("./db");
 
 /**
  * Validates a Supabase JWT from the Authorization header and attaches
@@ -14,7 +14,7 @@ async function requireAuth(req, res, next) {
   const token = authHeader.slice(7);
 
   try {
-    const supabase = getSupabaseAdminClient();
+    const supabase = getSupabasePublicClient();
     const {
       data: { user },
       error
@@ -25,9 +25,10 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = user;
+    req.accessToken = token;
     next();
   } catch {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(500).json({ error: "Authentication service misconfigured." });
   }
 }
 
