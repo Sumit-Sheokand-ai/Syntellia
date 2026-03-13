@@ -208,7 +208,14 @@
           "completedAt": { "type": ["string", "null"], "format": "date-time" },
           "error": { "type": ["string", "null"] },
           "shareToken": { "type": ["string", "null"] },
-          "report": { "type": ["object", "null"] }
+          "report": {
+            "type": ["object", "null"],
+            "description": "Structured scan output with UI/styling insights (`uiStyle`) and security/technical insights (`securityTechnical`).",
+            "properties": {
+              "uiStyle": { "type": "object" },
+              "securityTechnical": { "type": "object" }
+            }
+          }
         },
         "required": [
           "id",
