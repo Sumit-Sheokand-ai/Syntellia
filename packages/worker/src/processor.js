@@ -1711,6 +1711,64 @@ function buildPrioritizedActions(aggregate) {
   return actions.slice(0, 5);
 }
 
+function createCssVarSegment(value, index) {
+  const normalized = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 28);
+
+  if (!normalized) return `token-${index + 1}`;
+  return normalized;
+}
+
+function buildImplementationSnippets(aggregate) {
+  const colors = aggregate.colors.slice(0, 6);
+  const fonts = aggregate.fonts.slice(0, 3);
+  const components = aggregate.components.slice(0, 6);
+
+  const colorLines = colors.length
+    ? colors.map((color, index) => `  --brand-color-${index + 1}: ${color};`)
+    : [
+      "  --brand-color-1: #6ca8ff;",
+      "  --brand-color-2: #7cf5d4;"
+    ];
+  const fontLines = fonts.length
+    ? fonts.map((font, index) => `  --brand-font-${index + 1}: ${font};`)
+    : ["  --brand-font-1: 'Segoe UI', sans-serif;"];
+  const utilityLines = components.length
+    ? components.map((component, index) => {
+      const segment = createCssVarSegment(component, index);
+      return `.ui-${segment} { /* map styles for ${component} */ }`;
+    })
+    : [".ui-panel { border-radius: 24px; }"];
+
+  const code = [
+    ":root {",
+    ...colorLines,
+    ...fontLines,
+    "}",
+    "",
+    ".brand-surface {",
+    "  background: linear-gradient(180deg, rgba(18, 24, 52, 0.88), rgba(10, 14, 33, 0.76));",
+    "  border: 1px solid rgba(255, 255, 255, 0.1);",
+    "  box-shadow: 0 20px 80px rgba(5, 8, 22, 0.32);",
+    "}",
+    "",
+    ...utilityLines
+  ].join("\\n");
+
+  return [
+    {
+      id: "ui-style-foundation-css",
+      title: "Style foundation starter",
+      description: "Starter CSS generated from extracted style tokens for engineering implementation.",
+      language: "css",
+      code
+    }
+  ];
+}
+
 function buildSecurityRecommendations(aggregate, scanData) {
   const actions = [];
   const missingHeaders = aggregate.securityTechnical.headers.missing;
@@ -2017,6 +2075,7 @@ function buildReport(input, scanData) {
         components: aggregate.components,
         highlightWords: aggregate.highlightTerms
       },
+      implementationSnippets: buildImplementationSnippets(aggregate),
       contentClarity: {
         headingCount: aggregate.counts.headings,
         headingExamples: aggregate.headings.slice(0, 10),
@@ -2121,6 +2180,7 @@ module.exports = {
     assessCorsPolicy,
     assessCachePolicy,
     assessAuthSurface,
+    buildImplementationSnippets,
     computeSecurityPostureScore
   }
 };

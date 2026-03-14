@@ -21,6 +21,13 @@ export type PrioritizedAction = {
   effort: "low" | "medium" | "high";
   confidence: number;
 };
+export type ImplementationSnippet = {
+  id: string;
+  title: string;
+  description?: string;
+  language: string;
+  code: string;
+};
 
 export type CrawlSourceMeta = {
   pagesScanned: number;
@@ -80,6 +87,7 @@ export type UiStyleReport = {
     components: string[];
     highlightWords: string[];
   };
+  implementationSnippets?: ImplementationSnippet[];
   contentClarity: {
     headingCount: number;
     headingExamples: string[];

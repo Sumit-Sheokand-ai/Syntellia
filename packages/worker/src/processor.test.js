@@ -102,6 +102,22 @@ test("assessAuthSurface identifies password flows without CSRF indicators", () =
   assert.ok(result.issues.some((issue) => issue.includes("autocomplete=off")));
 });
 
+test("buildImplementationSnippets returns starter css snippet from style tokens", () => {
+  const snippets = __testables.buildImplementationSnippets({
+    colors: ["#112233", "rgb(20, 30, 40)"],
+    fonts: ["Inter", "System UI"],
+    components: ["Primary button", "Hero banner"]
+  });
+
+  assert.equal(Array.isArray(snippets), true);
+  assert.equal(snippets.length, 1);
+  assert.equal(snippets[0].id, "ui-style-foundation-css");
+  assert.equal(snippets[0].language, "css");
+  assert.ok(snippets[0].code.includes("--brand-color-1: #112233;"));
+  assert.ok(snippets[0].code.includes("--brand-font-1: Inter;"));
+  assert.ok(snippets[0].code.includes(".ui-primary-button"));
+});
+
 test("computeSecurityPostureScore penalizes missing coverage and weak hardening", () => {
   const score = __testables.computeSecurityPostureScore({
     securityTechnical: {

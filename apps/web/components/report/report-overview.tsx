@@ -1,10 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
 import type {
+  ImplementationSnippet,
   ScanReport,
   SecurityTechnicalReport,
   UiStyleReport
 } from "@/lib/report-schema";
+import { trackAnalyticsEvent } from "@/lib/scan-api-client";
+import { ImplementationCodePanel } from "@/components/ui/implementation-code-panel";
 import { ShellCard } from "@/components/ui/shell-card";
 
 type ReportOverviewProps = {
@@ -34,6 +37,78 @@ function getImpactLabel(impact: "high" | "medium" | "low") {
   return "Low impact";
 }
 
+function createCssVarSegment(value: string, index: number) {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 28);
+
+  if (!normalized) return `token-${index + 1}`;
+  return normalized;
+}
+
+function buildImplementationSnippetsFromTokens(
+  colors: string[],
+  fonts: string[],
+  components: string[]
+): ImplementationSnippet[] {
+  const normalizedColors = colors.slice(0, 6);
+  const normalizedFonts = fonts.slice(0, 3);
+  const normalizedComponents = components.slice(0, 6);
+
+  const colorLines = normalizedColors.length
+    ? normalizedColors.map((color, index) => `  --brand-color-${index + 1}: ${color};`)
+    : [
+      "  --brand-color-1: #6ca8ff;",
+      "  --brand-color-2: #7cf5d4;"
+    ];
+
+  const fontLines = normalizedFonts.length
+    ? normalizedFonts.map((font, index) => `  --brand-font-${index + 1}: ${font};`)
+    : ["  --brand-font-1: 'Segoe UI', sans-serif;"];
+
+  const utilityLines = normalizedComponents.length
+    ? normalizedComponents.map((component, index) => {
+      const segment = createCssVarSegment(component, index);
+      return `.ui-${segment} { /* map styles for ${component} */ }`;
+    })
+    : [".ui-panel { border-radius: 24px; }"];
+
+  const code = [
+    ":root {",
+    ...colorLines,
+    ...fontLines,
+    "}",
+    "",
+    ".brand-surface {",
+    "  background: linear-gradient(180deg, rgba(18, 24, 52, 0.88), rgba(10, 14, 33, 0.76));",
+    "  border: 1px solid rgba(255, 255, 255, 0.1);",
+    "  box-shadow: 0 20px 80px rgba(5, 8, 22, 0.32);",
+    "}",
+    "",
+    ...utilityLines
+  ].join("\n");
+
+  return [
+    {
+      id: "ui-style-foundation-css",
+      title: "Style foundation starter",
+      description: "Starter CSS generated from extracted style tokens so engineering can implement the same visual language quickly.",
+      language: "css",
+      code
+    }
+  ];
+}
+
+function getColorSwatchValue(value: string): string | null {
+  const token = value.trim();
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(token)) return token;
+  if (/^rgba?\(/i.test(token)) return token;
+  if (/^hsla?\(/i.test(token)) return token;
+  return null;
+}
+
 function buildUiStyleFallback(report: ScanReport): UiStyleReport {
   return {
     summary: "UI/styling insights are derived from visual tokens, content structure, and interaction cues in the scanned pages.",
@@ -54,6 +129,11 @@ function buildUiStyleFallback(report: ScanReport): UiStyleReport {
       navLabels: report.interactions.filter((item) => item.toLowerCase().includes("navigation")).slice(0, 8),
       buttonLabels: []
     },
+    implementationSnippets: buildImplementationSnippetsFromTokens(
+      report.source.colors,
+      report.source.fonts,
+      report.components
+    ),
     prioritizedActions: report.prioritizedActions ?? []
   };
 }
@@ -139,6 +219,25 @@ function sectionChip(value: string) {
   );
 }
 
+function colorTokenChip(value: string) {
+  const swatch = getColorSwatchValue(value);
+  return (
+    <span
+      key={value}
+      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-sm text-white/75"
+    >
+      {swatch ? (
+        <span
+          className="h-4 w-4 rounded-full border border-white/15"
+          style={{ backgroundColor: swatch }}
+          aria-hidden
+        />
+      ) : null}
+      {value}
+    </span>
+  );
+}
+
 export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
   const [activeTab, setActiveTab] = useState<"ui" | "security">("ui");
   const uiStyle = useMemo(() => report.uiStyle ?? buildUiStyleFallback(report), [report]);
@@ -146,9 +245,35 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
     () => report.securityTechnical ?? buildSecurityFallback(report),
     [report]
   );
+  const implementationSnippets = useMemo(
+    () => uiStyle.implementationSnippets?.length
+      ? uiStyle.implementationSnippets
+      : buildImplementationSnippetsFromTokens(
+        uiStyle.styleTokens.colors,
+        uiStyle.styleTokens.fonts,
+        uiStyle.styleTokens.components
+      ),
+    [uiStyle]
+  );
 
   const uiScores = report.scores.filter((score) => score.label !== "Security posture");
   const securityScore = report.scores.find((score) => score.label === "Security posture");
+
+  const trackCodePanelToggle = (snippetId: string, expanded: boolean) => {
+    void trackAnalyticsEvent("report_code_panel_toggled", {
+      snippetId,
+      expanded,
+      siteName: report.siteName
+    });
+  };
+
+  const trackCodeCopy = (snippetId: string, success: boolean) => {
+    void trackAnalyticsEvent("report_code_copied", {
+      snippetId,
+      success,
+      siteName: report.siteName
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -212,17 +337,27 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             <p className="mt-4 text-base leading-8 text-white/72">{uiStyle.summary}</p>
           </ShellCard>
 
-          <div className="grid gap-5 xl:grid-cols-4">
-            {uiScores.map((score) => (
-              <ShellCard key={score.label} className="p-6">
-                <p className="text-sm uppercase tracking-[0.26em] text-white/45">{score.label}</p>
-                <div className="mt-5 space-y-2">
-                  <span className="block text-5xl font-semibold text-white">{score.value}/100</span>
-                  <span className="text-sm text-white/55">{score.trend}</span>
+          <ShellCard className="p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-semibold text-white">Design executive summary</h2>
+              <p className="text-sm text-white/52">Clarity, trust, action, and accessibility at a glance</p>
+            </div>
+            <div className="mt-6 grid gap-4 xl:grid-cols-4">
+              {uiScores.map((score) => (
+                <div key={score.label} className="rounded-[22px] border border-white/10 bg-white/5 p-5">
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/45">{score.label}</p>
+                  <p className="mt-3 text-4xl font-semibold text-white">{score.value}/100</p>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#7cf5d4] via-[#6ca8ff] to-[#8cc6ff]"
+                      style={{ width: `${Math.max(4, Math.min(100, score.value))}%` }}
+                    />
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-white/55">{score.trend}</p>
                 </div>
-              </ShellCard>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ShellCard>
 
           <div className="grid gap-5 lg:grid-cols-[1.2fr,0.8fr]">
             <ShellCard className="p-8">
@@ -231,7 +366,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-white/45">Colors</p>
                   <div className="mt-4 flex flex-wrap gap-3">
-                    {(uiStyle.styleTokens.colors.length ? uiStyle.styleTokens.colors : ["No readable colors found"]).map(sectionChip)}
+                    {(uiStyle.styleTokens.colors.length ? uiStyle.styleTokens.colors : ["No readable colors found"]).map(colorTokenChip)}
                   </div>
                 </div>
                 <div>
@@ -244,6 +379,19 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   <p className="text-sm uppercase tracking-[0.24em] text-white/45">Components</p>
                   <div className="mt-4 flex flex-wrap gap-3">
                     {(uiStyle.styleTokens.components.length ? uiStyle.styleTokens.components : ["No strong component patterns detected"]).map(sectionChip)}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm uppercase tracking-[0.24em] text-white/45">Developer implementation snippets</p>
+                  <div className="mt-4 space-y-3">
+                    {implementationSnippets.map((snippet) => (
+                      <ImplementationCodePanel
+                        key={snippet.id}
+                        snippet={snippet}
+                        onToggle={(expanded) => trackCodePanelToggle(snippet.id, expanded)}
+                        onCopy={(success) => trackCodeCopy(snippet.id, success)}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -292,16 +440,19 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {(uiStyle.prioritizedActions.length ? uiStyle.prioritizedActions : report.prioritizedActions ?? []).map((action) => (
-                <div key={action.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-                  <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
-                    {getImpactLabel(action.impact)} · {action.effort} effort
-                  </div>
-                  <h3 className="mt-4 text-xl font-medium text-white">{action.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-white/65">{action.detail}</p>
-                  <p className="mt-3 text-xs uppercase tracking-[0.16em] text-white/45">
-                    Confidence {Math.round(action.confidence * 100)}%
-                  </p>
-                </div>
+                <details key={action.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                  <summary className="cursor-pointer list-none">
+                    <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
+                      {getImpactLabel(action.impact)} · {action.effort} effort
+                    </div>
+                    <h3 className="mt-4 text-xl font-medium text-white">{action.title}</h3>
+                    <p className="mt-2 text-xs uppercase tracking-[0.16em] text-white/45">
+                      Confidence {Math.round(action.confidence * 100)}%
+                    </p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to view implementation detail</p>
+                  </summary>
+                  <p className="mt-4 text-sm leading-7 text-white/65">{action.detail}</p>
+                </details>
               ))}
             </div>
           </ShellCard>
@@ -428,13 +579,16 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {securityTechnical.recommendations.map((recommendation) => (
-                <div key={recommendation.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-                  <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
-                    {getSeverityLabel(recommendation.impact)}
-                  </div>
-                  <h3 className="mt-4 text-xl font-medium text-white">{recommendation.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-white/65">{recommendation.detail}</p>
-                </div>
+                <details key={recommendation.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                  <summary className="cursor-pointer list-none">
+                    <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
+                      {getSeverityLabel(recommendation.impact)}
+                    </div>
+                    <h3 className="mt-4 text-xl font-medium text-white">{recommendation.title}</h3>
+                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to view hardening detail</p>
+                  </summary>
+                  <p className="mt-4 text-sm leading-7 text-white/65">{recommendation.detail}</p>
+                </details>
               ))}
             </div>
             <div className="mt-6 grid gap-3 md:grid-cols-3 text-sm text-white/75">
