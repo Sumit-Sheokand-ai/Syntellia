@@ -29,7 +29,7 @@ async function claimNextQueuedScan() {
   // Find the oldest queued scan
   const { data: candidates } = await supabase
     .from("scans")
-    .select("id, user_id, url, scan_size, login_mode, focus_area")
+    .select("id, user_id, url, scan_size, login_mode, focus_area, created_at")
     .eq("status", "Queued")
     .order("created_at", { ascending: true })
     .limit(1);
@@ -45,7 +45,7 @@ async function claimNextQueuedScan() {
     .update({ status: "Running", started_at: new Date().toISOString() })
     .eq("id", candidate.id)
     .eq("status", "Queued")
-    .select("id, user_id, url, scan_size, login_mode, focus_area")
+    .select("id, user_id, url, scan_size, login_mode, focus_area, created_at")
     .maybeSingle();
 
   return claimed ?? null;
@@ -62,7 +62,8 @@ async function writeScanResult(scanId, userId, report) {
       error: null
     })
     .eq("id", scanId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("status", "Running");
 
   if (error) throw new Error(`Unable to save scan result: ${error.message}`);
 }
@@ -78,7 +79,8 @@ async function writeScanError(scanId, userId, errorMessage) {
       error: errorMessage
     })
     .eq("id", scanId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("status", "Running");
 
   if (error) throw new Error(`Unable to save scan error: ${error.message}`);
 }

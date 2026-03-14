@@ -7,6 +7,7 @@ import type { ScanRecord } from "@/lib/scan-types";
 import {
   createShareLinkViaApi,
   getScanViaApi,
+  revokeShareLinkViaApi,
   trackAnalyticsEvent
 } from "@/lib/scan-api-client";
 
@@ -19,6 +20,11 @@ function ProgressView({ scan }: { scan: ScanRecord }) {
     scan.status === "Queued"
       ? "The scan is queued and waiting to start."
       : "The page is being fetched and analyzed now.";
+  const startedAtMs = Date.parse(scan.startedAt ?? scan.createdAt);
+  const elapsedMinutes = Number.isFinite(startedAtMs)
+    ? Math.max(0, Math.round((Date.now() - startedAtMs) / 60_000))
+    : 0;
+  const estimatedTotalMinutes = Math.max(1, Math.ceil(scan.pageLimit * 0.6));
 
   return (
     <div className="space-y-8">
@@ -49,6 +55,8 @@ function ProgressView({ scan }: { scan: ScanRecord }) {
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan size: {scan.scanSize}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Main focus: {scan.focusArea}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Page limit: up to {scan.pageLimit}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Elapsed: ~{elapsedMinutes} min</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Estimated total: ~{estimatedTotalMinutes} min</div>
           </div>
           <p className="mt-6 text-sm leading-7 text-white/58">This view refreshes automatically. The full summary will appear as soon as the page data is ready.</p>
         </ShellCard>
@@ -82,6 +90,7 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [isPreparingShare, setIsPreparingShare] = useState(false);
+  const [isRevokingShare, setIsRevokingShare] = useState(false);
 
   useEffect(() => {
     if (scan.status === "Completed" || scan.status === "Failed") {
@@ -125,6 +134,12 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
       if (!sharePath) {
         const created = await createShareLinkViaApi(scan.id);
         sharePath = created.sharePath;
+        setScan((current) => ({
+          ...current,
+          shareToken: created.shareToken,
+          shareTokenExpiresAt: created.expiresAt ?? undefined,
+          shareRevokedAt: undefined
+        }));
       }
 
       if (typeof window === "undefined") return;
@@ -150,6 +165,30 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
     }
   };
 
+  const revokeShareLink = async () => {
+    try {
+      setIsRevokingShare(true);
+      setShareNotice(null);
+      await revokeShareLinkViaApi(scan.id);
+      setScan((current) => ({
+        ...current,
+        shareToken: undefined,
+        shareTokenExpiresAt: undefined,
+        shareRevokedAt: new Date().toISOString()
+      }));
+      setShareUrl(null);
+      setShareNotice("Share link revoked.");
+      void trackAnalyticsEvent("scan_share_link_revoked", {
+        scanId: scan.id,
+        projectName: scan.projectName
+      });
+    } catch (error) {
+      setShareNotice(error instanceof Error ? error.message : "Unable to revoke share link.");
+    } finally {
+      setIsRevokingShare(false);
+    }
+  };
+
   if (scan.status === "Failed") {
     return <FailureView scan={scan} />;
   }
@@ -169,18 +208,35 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
             {shareUrl ? (
               <p className="mt-3 text-xs break-all text-white/58">{shareUrl}</p>
             ) : null}
+            {scan.shareTokenExpiresAt ? (
+              <p className="mt-2 text-xs text-white/52">
+                Expires: {new Date(scan.shareTokenExpiresAt).toLocaleString()}
+              </p>
+            ) : null}
             {shareNotice ? (
               <p className="mt-3 text-sm text-[#7cf5d4]">{shareNotice}</p>
             ) : null}
           </div>
-          <button
-            type="button"
-            className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={prepareShareLink}
-            disabled={isPreparingShare}
-          >
-            {isPreparingShare ? "Preparing link..." : shareUrl ? "Copy share link" : "Create share link"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={prepareShareLink}
+              disabled={isPreparingShare}
+            >
+              {isPreparingShare ? "Preparing link..." : shareUrl ? "Copy share link" : "Create share link"}
+            </button>
+            {shareUrl ? (
+              <button
+                type="button"
+                className="rounded-full border border-[#ffb39f]/30 bg-[#ffb39f]/10 px-5 py-3 text-sm text-[#ffd6cb] transition hover:bg-[#ffb39f]/16 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={revokeShareLink}
+                disabled={isRevokingShare}
+              >
+                {isRevokingShare ? "Revoking..." : "Revoke link"}
+              </button>
+            ) : null}
+          </div>
         </div>
       </ShellCard>
       <ReportOverview report={scan.report} scanMeta={scan} />

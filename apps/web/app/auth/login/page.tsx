@@ -65,7 +65,9 @@ export default function LoginPage() {
       <p className="mt-3 text-sm text-white/62">Use email/password or continue with your preferred provider.</p>
 
       <form className="mt-8 space-y-4" onSubmit={signInWithPassword}>
+        <label htmlFor="login-email" className="sr-only">Email</label>
         <input
+          id="login-email"
           type="email"
           required
           placeholder="Email"
@@ -73,7 +75,9 @@ export default function LoginPage() {
           onChange={(event) => setEmail(event.target.value)}
           className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
         />
+        <label htmlFor="login-password" className="sr-only">Password</label>
         <input
+          id="login-password"
           type="password"
           required
           placeholder="Password"

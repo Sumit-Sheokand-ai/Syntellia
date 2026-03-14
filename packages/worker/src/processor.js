@@ -1,4 +1,6 @@
 const cheerio = require("cheerio");
+const dns = require("node:dns/promises");
+const net = require("node:net");
 
 const COLOR_PATTERN = /#(?:[0-9a-f]{3,8})\b|rgba?\([^)]+\)|hsla?\([^)]+\)/gi;
 const FONT_FAMILY_PATTERN = /font-family\s*:\s*([^;}{]+)/gi;
@@ -88,6 +90,80 @@ class ScanProcessingError extends Error {
     this.name = "ScanProcessingError";
     this.code = code;
     this.retryable = options.retryable ?? false;
+  }
+}
+
+function isPrivateIpv4(ip) {
+  const octets = ip.split(".").map((part) => Number.parseInt(part, 10));
+  if (octets.length !== 4 || octets.some((value) => !Number.isFinite(value))) return false;
+  if (octets[0] === 10) return true;
+  if (octets[0] === 127) return true;
+  if (octets[0] === 192 && octets[1] === 168) return true;
+  if (octets[0] === 169 && octets[1] === 254) return true;
+  if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+  return false;
+}
+
+function isPrivateIpv6(ip) {
+  const normalized = ip.toLowerCase();
+  if (normalized === "::1") return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  if (normalized.startsWith("fe80")) return true;
+  return false;
+}
+
+function isUnsafeHostname(hostname) {
+  const normalized = hostname.toLowerCase();
+  if (!normalized) return true;
+  if (normalized === "localhost" || normalized.endsWith(".localhost")) return true;
+  if (
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal") ||
+    normalized.endsWith(".home.arpa")
+  ) {
+    return true;
+  }
+
+  const ipVersion = net.isIP(normalized);
+  if (ipVersion === 4) return isPrivateIpv4(normalized);
+  if (ipVersion === 6) return isPrivateIpv6(normalized);
+  return false;
+}
+
+async function assertSafeNetworkTarget(url) {
+  const parsed = new URL(url);
+  const hostname = parsed.hostname;
+  if (isUnsafeHostname(hostname)) {
+    throw new ScanProcessingError(
+      "UNSAFE_TARGET_HOST",
+      "The target host is blocked for security reasons.",
+      { retryable: false }
+    );
+  }
+
+  try {
+    const records = await dns.lookup(hostname, { all: true, verbatim: true });
+    if (!records.length) {
+      throw new ScanProcessingError(
+        "UNRESOLVABLE_TARGET_HOST",
+        "The target host could not be resolved.",
+        { retryable: false }
+      );
+    }
+    if (records.some((record) => isUnsafeHostname(record.address))) {
+      throw new ScanProcessingError(
+        "UNSAFE_TARGET_IP",
+        "The target resolves to an internal or blocked IP range.",
+        { retryable: false }
+      );
+    }
+  } catch (error) {
+    if (error instanceof ScanProcessingError) throw error;
+    throw new ScanProcessingError(
+      "TARGET_DNS_LOOKUP_FAILED",
+      "The target host DNS lookup failed.",
+      { retryable: true }
+    );
   }
 }
 
@@ -641,10 +717,135 @@ function assessLinkAndFormHardening($, baseUrl) {
   };
 }
 
+function assessScriptSurface($, baseUrl, finalProtocol) {
+  const pageOrigin = new URL(baseUrl).origin;
+  const externalHosts = new Set();
+  let externalScriptCount = 0;
+  let scriptsWithoutSriCount = 0;
+  let mixedContentCount = 0;
+  const inlineScriptCount = $("script:not([src])").length;
+
+  $("script[src]").each((_, element) => {
+    const src = normalizeCrawlUrl($(element).attr("src"), baseUrl);
+    if (!src) return;
+    const parsed = new URL(src);
+    if (finalProtocol === "https:" && parsed.protocol === "http:") mixedContentCount += 1;
+    if (parsed.origin !== pageOrigin) {
+      externalScriptCount += 1;
+      externalHosts.add(parsed.hostname);
+      if (!$(element).attr("integrity")) scriptsWithoutSriCount += 1;
+    }
+  });
+
+  const mixedSelectors = [
+    "img[src]",
+    "source[src]",
+    "video[src]",
+    "audio[src]",
+    "iframe[src]",
+    "link[href]"
+  ];
+  mixedSelectors.forEach((selector) => {
+    $(selector).each((_, element) => {
+      const attr = selector.includes("href") ? "href" : "src";
+      const assetUrl = normalizeCrawlUrl($(element).attr(attr), baseUrl);
+      if (!assetUrl) return;
+      if (finalProtocol === "https:" && assetUrl.startsWith("http://")) {
+        mixedContentCount += 1;
+      }
+    });
+  });
+
+  return {
+    externalScriptCount,
+    externalScriptHostCount: externalHosts.size,
+    externalScriptHosts: [...externalHosts].slice(0, 10),
+    scriptsWithoutSriCount,
+    inlineScriptCount,
+    mixedContentCount
+  };
+}
+
+function assessCorsPolicy(headers) {
+  const normalized = normalizeHeaderRecord(headers);
+  const allowOrigin = normalized["access-control-allow-origin"] ?? "";
+  const allowCredentials = normalized["access-control-allow-credentials"] ?? "";
+  const issues = [];
+
+  if (allowOrigin === "*") {
+    issues.push("CORS allows all origins via Access-Control-Allow-Origin: *.");
+  }
+  if (allowOrigin === "*" && /true/i.test(allowCredentials)) {
+    issues.push("CORS wildcard origin with credentials is unsafe and typically invalid.");
+  }
+
+  return {
+    allowOrigin: allowOrigin || "not-set",
+    allowsCredentials: /true/i.test(allowCredentials),
+    issues
+  };
+}
+
+function assessCachePolicy(headers, hasSensitiveForm) {
+  const normalized = normalizeHeaderRecord(headers);
+  const cacheControl = normalized["cache-control"] ?? "";
+  const pragma = normalized.pragma ?? "";
+  const issues = [];
+
+  if (hasSensitiveForm && !/no-store/i.test(cacheControl) && !/no-cache/i.test(pragma)) {
+    issues.push("Sensitive form page is missing no-store/no-cache protections.");
+  }
+  if (!cacheControl) {
+    issues.push("Cache-Control header is not present.");
+  }
+
+  return {
+    cacheControl: cacheControl || "not-set",
+    pragma: pragma || "not-set",
+    issues
+  };
+}
+
+function assessAuthSurface($) {
+  const passwordInputs = $("input[type='password']");
+  const passwordInputCount = passwordInputs.length;
+  const formNodes = new Set();
+  passwordInputs.each((_, element) => {
+    const parentForm = $(element).closest("form").get(0);
+    if (parentForm) formNodes.add(parentForm);
+  });
+
+  const hiddenNames = $("input[type='hidden']")
+    .map((_, element) => ($(element).attr("name") ?? "").toLowerCase())
+    .get();
+  const csrfSignalCount = hiddenNames.filter((name) => /(csrf|xsrf|token)/i.test(name)).length;
+  const passwordAutocompleteOffCount = passwordInputs
+    .filter((_, element) => (($(element).attr("autocomplete") ?? "").toLowerCase() === "off"))
+    .length;
+
+  const issues = [];
+  if (passwordInputCount > 0 && csrfSignalCount === 0) {
+    issues.push("Password flow detected without obvious CSRF/token form fields.");
+  }
+  if (passwordAutocompleteOffCount > 0) {
+    issues.push("Password fields with autocomplete=off may reduce password manager safety.");
+  }
+
+  return {
+    hasPasswordFlow: passwordInputCount > 0,
+    passwordInputCount,
+    passwordFormCount: formNodes.size,
+    csrfSignalCount,
+    passwordAutocompleteOffCount,
+    issues
+  };
+}
+
 function assessSecurityTechnical($, scanUrl, fetched) {
   const headers = evaluateSecurityHeaders(fetched.responseHeaders);
   const cookies = analyzeSetCookieHeaders(fetched.setCookieHeaders);
   const linksAndForms = assessLinkAndFormHardening($, fetched.finalUrl);
+  const authSurface = assessAuthSurface($);
 
   const scanProtocol = new URL(scanUrl).protocol;
   const finalProtocol = new URL(fetched.finalUrl).protocol;
@@ -655,6 +856,17 @@ function assessSecurityTechnical($, scanUrl, fetched) {
     redirectedToHttps: scanProtocol === "http:" && finalProtocol === "https:",
     downgradedToHttp: scanProtocol === "https:" && finalProtocol === "http:"
   };
+  const scriptSurface = assessScriptSurface($, fetched.finalUrl, finalProtocol);
+  const cors = assessCorsPolicy(fetched.responseHeaders);
+  const cachePolicy = assessCachePolicy(fetched.responseHeaders, authSurface.hasPasswordFlow);
+  const normalizedHeaders = normalizeHeaderRecord(fetched.responseHeaders);
+  const hstsValue = normalizedHeaders["strict-transport-security"] ?? "";
+  const hstsMaxAge = Number((hstsValue.match(/max-age\s*=\s*(\d+)/i) ?? [])[1] ?? "0");
+  const hstsIncludesSubdomains = /includesubdomains/i.test(hstsValue);
+  const hstsPreloadFlag = /preload/i.test(hstsValue);
+  const hstsPreloadReady = Boolean(
+    hstsValue && hstsMaxAge >= 31_536_000 && hstsIncludesSubdomains && hstsPreloadFlag
+  );
 
   const notes = [];
   if (!transport.usesHttps) {
@@ -672,12 +884,38 @@ function assessSecurityTechnical($, scanUrl, fetched) {
   if (linksAndForms.insecureFormActionCount > 0) {
     notes.push(`${linksAndForms.insecureFormActionCount} form action(s) post over HTTP.`);
   }
+  if (scriptSurface.mixedContentCount > 0) {
+    notes.push(`${scriptSurface.mixedContentCount} mixed-content asset reference(s) were detected.`);
+  }
+  if (scriptSurface.scriptsWithoutSriCount > 0) {
+    notes.push(`${scriptSurface.scriptsWithoutSriCount} external script(s) are missing SRI integrity attributes.`);
+  }
+  if (cors.issues.length > 0) {
+    notes.push(...cors.issues);
+  }
+  if (cachePolicy.issues.length > 0) {
+    notes.push(...cachePolicy.issues);
+  }
+  if (authSurface.issues.length > 0) {
+    notes.push(...authSurface.issues);
+  }
 
   return {
     transport,
     headers,
     cookies,
     linksAndForms,
+    scriptSurface,
+    cors,
+    cachePolicy,
+    authSurface,
+    hsts: {
+      value: hstsValue || "not-set",
+      maxAge: hstsMaxAge,
+      includesSubdomains: hstsIncludesSubdomains,
+      hasPreloadFlag: hstsPreloadFlag,
+      preloadReady: hstsPreloadReady
+    },
     notes
   };
 }
@@ -689,6 +927,7 @@ function isTimeoutError(error) {
 }
 
 async function fetchTextViaHttp(url, timeoutMs) {
+  await assertSafeNetworkTarget(url);
   let response;
   try {
     response = await fetch(url, {
@@ -720,6 +959,7 @@ async function fetchTextViaHttp(url, timeoutMs) {
       { retryable: response.status >= 500 }
     );
   }
+  await assertSafeNetworkTarget(response.url);
 
   const responseHeaders = {};
   response.headers.forEach((value, key) => {
@@ -741,6 +981,7 @@ async function fetchTextViaHttp(url, timeoutMs) {
 }
 
 async function fetchTextViaBrowser(url, timeoutMs) {
+  await assertSafeNetworkTarget(url);
   const playwright = getPlaywright();
   if (!playwright) {
     throw new ScanProcessingError(
@@ -788,8 +1029,11 @@ async function fetchTextViaBrowser(url, timeoutMs) {
       }
     }
 
+    const finalUrl = page.url();
+    await assertSafeNetworkTarget(finalUrl);
+
     return {
-      finalUrl: page.url(),
+      finalUrl,
       statusCode: response?.status() ?? 200,
       body,
       responseHeaders: normalizeHeaderRecord(responseHeaders),
@@ -848,6 +1092,7 @@ async function fetchStylesheets($, baseUrl) {
 
   const results = await Promise.allSettled(
     stylesheetUrls.map(async (url) => {
+      await assertSafeNetworkTarget(url);
       const response = await fetch(url, {
         headers: { "User-Agent": CRAWLER_USER_AGENT },
         redirect: "follow",
@@ -869,7 +1114,9 @@ function collectDiscoveredLinks($, baseUrl, rootOrigin) {
       .filter((url) => {
         if (!url) return false;
         const parsed = new URL(url);
-        return parsed.origin === rootOrigin;
+        if (parsed.origin !== rootOrigin) return false;
+        if (isUnsafeHostname(parsed.hostname)) return false;
+        return true;
       }),
     60
   );
@@ -987,6 +1234,7 @@ async function extractScanData(input) {
   }
 
   const rootOrigin = new URL(rootUrl).origin;
+  await assertSafeNetworkTarget(rootUrl);
   const requestedMode = resolveRequestedExecutionMode(input.loginMode);
   const robotsPolicy = await fetchRobotsPolicy(rootUrl);
 
@@ -1169,6 +1417,16 @@ function aggregatePages(scanData) {
   let unsafeTargetBlankCount = 0;
   let insecureLinkCount = 0;
   let insecureFormActionCount = 0;
+  let mixedContentCount = 0;
+  let externalScriptCount = 0;
+  let scriptsWithoutSriCount = 0;
+  let inlineScriptCount = 0;
+  const externalScriptHosts = new Set();
+  let corsRiskPageCount = 0;
+  let cacheRiskPageCount = 0;
+  let passwordFlowPageCount = 0;
+  let passwordFlowMissingCsrfCount = 0;
+  let hstsPreloadReadyCount = 0;
 
   for (const page of pages) {
     totalCounts.headings += page.counts.headings;
@@ -1233,6 +1491,20 @@ function aggregatePages(scanData) {
     unsafeTargetBlankCount += page.securityTechnical?.linksAndForms?.unsafeTargetBlankCount ?? 0;
     insecureLinkCount += page.securityTechnical?.linksAndForms?.insecureLinkCount ?? 0;
     insecureFormActionCount += page.securityTechnical?.linksAndForms?.insecureFormActionCount ?? 0;
+    mixedContentCount += page.securityTechnical?.scriptSurface?.mixedContentCount ?? 0;
+    externalScriptCount += page.securityTechnical?.scriptSurface?.externalScriptCount ?? 0;
+    scriptsWithoutSriCount += page.securityTechnical?.scriptSurface?.scriptsWithoutSriCount ?? 0;
+    inlineScriptCount += page.securityTechnical?.scriptSurface?.inlineScriptCount ?? 0;
+    page.securityTechnical?.scriptSurface?.externalScriptHosts?.forEach((host) => externalScriptHosts.add(host));
+    if ((page.securityTechnical?.cors?.issues?.length ?? 0) > 0) corsRiskPageCount += 1;
+    if ((page.securityTechnical?.cachePolicy?.issues?.length ?? 0) > 0) cacheRiskPageCount += 1;
+    if (page.securityTechnical?.authSurface?.hasPasswordFlow) {
+      passwordFlowPageCount += 1;
+      if ((page.securityTechnical?.authSurface?.csrfSignalCount ?? 0) === 0) {
+        passwordFlowMissingCsrfCount += 1;
+      }
+    }
+    if (page.securityTechnical?.hsts?.preloadReady) hstsPreloadReadyCount += 1;
 
     const missingHeaderLabels = (page.securityTechnical?.headers?.missing ?? []).map((entry) => entry.label);
     pageSecurityHighlights.push({
@@ -1242,7 +1514,10 @@ function aggregatePages(scanData) {
       weakHeaderCount: page.securityTechnical?.headers?.weak?.length ?? 0,
       unsafeTargetBlank: page.securityTechnical?.linksAndForms?.unsafeTargetBlankCount ?? 0,
       insecureLinks: page.securityTechnical?.linksAndForms?.insecureLinkCount ?? 0,
-      insecureForms: page.securityTechnical?.linksAndForms?.insecureFormActionCount ?? 0
+      insecureForms: page.securityTechnical?.linksAndForms?.insecureFormActionCount ?? 0,
+      mixedContent: page.securityTechnical?.scriptSurface?.mixedContentCount ?? 0,
+      scriptsWithoutSri: page.securityTechnical?.scriptSurface?.scriptsWithoutSriCount ?? 0,
+      corsIssueCount: page.securityTechnical?.cors?.issues?.length ?? 0
     });
   }
 
@@ -1327,6 +1602,26 @@ function aggregatePages(scanData) {
         unsafeTargetBlankCount,
         insecureLinkCount,
         insecureFormActionCount
+      },
+      scriptSurface: {
+        mixedContentCount,
+        externalScriptCount,
+        scriptsWithoutSriCount,
+        inlineScriptCount,
+        externalScriptHosts: [...externalScriptHosts].slice(0, 15)
+      },
+      cors: {
+        riskyPageCount: corsRiskPageCount
+      },
+      cachePolicy: {
+        riskyPageCount: cacheRiskPageCount
+      },
+      authSurface: {
+        passwordFlowPageCount,
+        passwordFlowMissingCsrfCount
+      },
+      hsts: {
+        preloadReadyCount: hstsPreloadReadyCount
       },
       pageHighlights: pageSecurityHighlights.slice(0, 10)
     }
@@ -1456,6 +1751,38 @@ function buildSecurityRecommendations(aggregate, scanData) {
     });
   }
 
+  if (aggregate.securityTechnical.scriptSurface.mixedContentCount > 0) {
+    actions.push({
+      title: "Eliminate mixed content references",
+      detail: `${aggregate.securityTechnical.scriptSurface.mixedContentCount} mixed-content asset reference(s) were found.`,
+      impact: "high"
+    });
+  }
+
+  if (aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount > 0) {
+    actions.push({
+      title: "Add SRI to external script dependencies",
+      detail: `${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount} external script(s) are missing integrity hashes.`,
+      impact: "medium"
+    });
+  }
+
+  if (aggregate.securityTechnical.cors.riskyPageCount > 0) {
+    actions.push({
+      title: "Tighten permissive CORS responses",
+      detail: `CORS policy issues were detected on ${aggregate.securityTechnical.cors.riskyPageCount} scanned page(s).`,
+      impact: "medium"
+    });
+  }
+
+  if (aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount > 0) {
+    actions.push({
+      title: "Verify anti-CSRF protections on auth flows",
+      detail: `${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount} password-flow page(s) lacked obvious CSRF/token fields.`,
+      impact: "high"
+    });
+  }
+
   if (aggregate.securityTechnical.cookies.totalSetCookie > 0) {
     if (
       aggregate.securityTechnical.cookies.secureRate < 100 ||
@@ -1501,7 +1828,11 @@ function computeSecurityPostureScore(aggregate) {
     aggregate.securityTechnical.headers.weak.length * 4 +
     aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount * 1.5 +
     aggregate.securityTechnical.linksAndForms.insecureFormActionCount * 3 +
-    aggregate.securityTechnical.linksAndForms.insecureLinkCount * 1;
+    aggregate.securityTechnical.linksAndForms.insecureLinkCount * 1 +
+    aggregate.securityTechnical.scriptSurface.mixedContentCount * 1.5 +
+    aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount * 1 +
+    aggregate.securityTechnical.cors.riskyPageCount * 1.5 +
+    aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount * 2;
 
   return scoreWithinRange(Math.round(98 - penalty));
 }
@@ -1700,7 +2031,7 @@ function buildReport(input, scanData) {
       prioritizedActions
     },
     securityTechnical: {
-      summary: `Security and technical review covers transport security, response hardening headers, cookie flags, and link/form safety checks.`,
+      summary: `Security and technical review covers transport security, response headers, cookie flags, link/form safety, script supply-chain exposure, CORS/cache policy, and auth-surface hardening signals.`,
       postureScore: securityPostureScore,
       transport: {
         httpsCoverage: aggregate.securityTechnical.transport.httpsCoverage,
@@ -1717,6 +2048,11 @@ function buildReport(input, scanData) {
       },
       cookies: aggregate.securityTechnical.cookies,
       linksAndForms: aggregate.securityTechnical.linksAndForms,
+      scriptSurface: aggregate.securityTechnical.scriptSurface,
+      cors: aggregate.securityTechnical.cors,
+      cachePolicy: aggregate.securityTechnical.cachePolicy,
+      authSurface: aggregate.securityTechnical.authSurface,
+      hsts: aggregate.securityTechnical.hsts,
       crawlDiagnostics: {
         blockedByRobots: scanData.crawl.blockedByRobots,
         pageErrors: scanData.crawl.errors.length,
@@ -1781,6 +2117,10 @@ module.exports = {
     evaluateSecurityHeaders,
     analyzeSetCookieHeaders,
     assessLinkAndFormHardening,
+    assessScriptSurface,
+    assessCorsPolicy,
+    assessCachePolicy,
+    assessAuthSurface,
     computeSecurityPostureScore
   }
 };

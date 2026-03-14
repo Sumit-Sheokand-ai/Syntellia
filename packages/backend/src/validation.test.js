@@ -40,3 +40,23 @@ test("validateCreateScanPayload rejects unsupported enum values", () => {
     (error) => error instanceof ValidationError && error.code === "VALIDATION_FOCUS_AREA"
   );
 });
+
+test("validateCreateScanPayload rejects localhost/private destinations", () => {
+  assert.throws(
+    () =>
+      validateCreateScanPayload({
+        url: "http://127.0.0.1/admin"
+      }),
+    (error) => error instanceof ValidationError && error.code === "VALIDATION_URL_UNSAFE_DESTINATION"
+  );
+});
+
+test("validateCreateScanPayload rejects URLs with embedded credentials", () => {
+  assert.throws(
+    () =>
+      validateCreateScanPayload({
+        url: "https://user:pass@example.com"
+      }),
+    (error) => error instanceof ValidationError && error.code === "VALIDATION_URL_CREDENTIALS"
+  );
+});

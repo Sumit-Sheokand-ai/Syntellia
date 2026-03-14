@@ -132,9 +132,11 @@ function buildAlertSummary(scans: ScanRecord[], lastVisitValue: string | null): 
 export default function ScanHistoryPage() {
   const [scans, setScans] = useState<ScanRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [searchText, setSearchText] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedHistoryView[]>([]);
   const [newViewName, setNewViewName] = useState("");
   const [alerts, setAlerts] = useState<HistoryAlertSummary | null>(null);
@@ -155,14 +157,16 @@ export default function ScanHistoryPage() {
     let isActive = true;
 
     setIsLoading(true);
-    listScansViaApi()
+    setError(null);
+    listScansViaApi({ status: statusFilter, pageSize: 25 })
       .then((result) => {
         if (!isActive) return;
-        setScans(result);
+        setScans(result.scans);
+        setNextCursor(result.nextCursor);
 
         if (typeof window === "undefined") return;
         const lastVisit = window.localStorage.getItem(LAST_VISIT_STORAGE_KEY);
-        const summary = buildAlertSummary(result, lastVisit);
+        const summary = buildAlertSummary(result.scans, lastVisit);
         setAlerts(summary);
         window.localStorage.setItem(LAST_VISIT_STORAGE_KEY, new Date().toISOString());
 
@@ -182,7 +186,7 @@ export default function ScanHistoryPage() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [statusFilter]);
 
   const filteredScans = useMemo(() => {
     const text = searchText.trim().toLowerCase();
@@ -240,6 +244,25 @@ export default function ScanHistoryPage() {
 
   const deleteSavedView = (viewId: string) => {
     setSavedViews((current) => current.filter((view) => view.id !== viewId));
+  };
+
+  const loadMore = async () => {
+    if (!nextCursor) return;
+
+    try {
+      setIsLoadingMore(true);
+      const result = await listScansViaApi({
+        status: statusFilter,
+        pageSize: 25,
+        cursor: nextCursor
+      });
+      setScans((current) => [...current, ...result.scans]);
+      setNextCursor(result.nextCursor);
+    } catch (scanError) {
+      setError(scanError instanceof Error ? scanError.message : "Unable to load additional scans.");
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
 
   return (
@@ -381,6 +404,18 @@ export default function ScanHistoryPage() {
                 </div>
               </div>
             ))}
+            {nextCursor ? (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isLoadingMore ? "Loading more..." : "Load more scans"}
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
       </ShellCard>

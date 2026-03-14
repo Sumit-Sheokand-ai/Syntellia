@@ -61,7 +61,9 @@ export default function SignupPage() {
       <p className="mt-3 text-sm text-white/62">Sign up with email/password. OAuth is available from the sign-in page.</p>
 
       <form className="mt-8 space-y-4" onSubmit={signUpWithPassword}>
+        <label htmlFor="signup-email" className="sr-only">Email</label>
         <input
+          id="signup-email"
           type="email"
           required
           placeholder="Email"
@@ -69,7 +71,9 @@ export default function SignupPage() {
           onChange={(event) => setEmail(event.target.value)}
           className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
         />
+        <label htmlFor="signup-password" className="sr-only">Password</label>
         <input
+          id="signup-password"
           type="password"
           required
           minLength={8}

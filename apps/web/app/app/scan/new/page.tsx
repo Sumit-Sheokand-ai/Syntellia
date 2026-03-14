@@ -19,6 +19,36 @@ const highlights = [
     value: "The report focuses on style, clarity, and ease of use."
   }
 ];
+const scanPresets = [
+  {
+    label: "Balanced UX review",
+    detail: "Best default for readability, interaction quality, and design consistency.",
+    scanSize: "Standard review",
+    loginMode: "No login needed",
+    focusArea: "Overall feel"
+  },
+  {
+    label: "Brand and visual system",
+    detail: "Prioritizes colors, typography, and component consistency.",
+    scanSize: "Standard review",
+    loginMode: "No login needed",
+    focusArea: "Look and brand"
+  },
+  {
+    label: "Conversion flow check",
+    detail: "Focuses on navigation paths, CTA clarity, and action friction.",
+    scanSize: "Full walkthrough",
+    loginMode: "No login needed",
+    focusArea: "Navigation and actions"
+  },
+  {
+    label: "Security hardening baseline",
+    detail: "Maximizes crawl breadth while prioritizing Security/Technical diagnostics.",
+    scanSize: "Full walkthrough",
+    loginMode: "I'm not sure",
+    focusArea: "Navigation and actions"
+  }
+];
 
 const scanSizes = [
   {
@@ -114,6 +144,7 @@ export default function NewScanPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     url: "",
+    scanPreset: "Balanced UX review",
     scanSize: "Standard review",
     loginMode: "No login needed",
     focusArea: "Overall feel",
@@ -122,6 +153,18 @@ export default function NewScanPage() {
 
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const applyPreset = (presetLabel: string) => {
+    const preset = scanPresets.find((entry) => entry.label === presetLabel);
+    if (!preset) return;
+    setForm((current) => ({
+      ...current,
+      scanPreset: preset.label,
+      scanSize: preset.scanSize,
+      loginMode: preset.loginMode,
+      focusArea: preset.focusArea
+    }));
   };
 
   const queueScan = () => {
@@ -168,8 +211,9 @@ export default function NewScanPage() {
       <ShellCard className="p-8">
         <div className="space-y-8">
           <div>
-            <label className="text-sm uppercase tracking-[0.24em] text-white/42">Page link</label>
+            <label htmlFor="scan-url" className="text-sm uppercase tracking-[0.24em] text-white/42">Page link</label>
             <input
+              id="scan-url"
               className="mt-3 w-full rounded-[22px] border border-white/10 bg-white/6 px-5 py-4 text-base text-white outline-none transition placeholder:text-white/28 focus:border-[#7cf5d4]/45"
               placeholder="https://your-site.com"
               type="url"
@@ -178,8 +222,9 @@ export default function NewScanPage() {
             />
           </div>
           <div>
-            <label className="text-sm uppercase tracking-[0.24em] text-white/42">Project name</label>
+            <label htmlFor="scan-project" className="text-sm uppercase tracking-[0.24em] text-white/42">Project name</label>
             <input
+              id="scan-project"
               className="mt-3 w-full rounded-[22px] border border-white/10 bg-white/6 px-5 py-4 text-base text-white outline-none transition placeholder:text-white/28 focus:border-[#7cf5d4]/45"
               placeholder="General"
               type="text"
@@ -188,6 +233,12 @@ export default function NewScanPage() {
               onChange={(event) => updateForm("projectName", event.target.value)}
             />
           </div>
+          <ChoiceGroup
+            title="Choose a guided preset"
+            options={scanPresets.map((preset) => ({ label: preset.label, detail: preset.detail }))}
+            value={form.scanPreset}
+            onChange={applyPreset}
+          />
           <ChoiceGroup title="How broad should the review be?" options={scanSizes} value={form.scanSize} onChange={(value) => updateForm("scanSize", value)} />
           <ChoiceGroup title="Does this page need a login?" options={loginModes} value={form.loginMode} onChange={(value) => updateForm("loginMode", value)} />
           <ChoiceGroup title="What should we focus on?" options={focusAreas} value={form.focusArea} onChange={(value) => updateForm("focusArea", value)} />

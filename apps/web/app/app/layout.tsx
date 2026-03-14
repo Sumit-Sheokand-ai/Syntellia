@@ -37,7 +37,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   if (checking) {
-    return null;
+    return (
+      <div className="min-h-screen px-6 py-8 md:px-10 xl:px-14">
+        <div className="mx-auto max-w-7xl">
+          <div className="panel rounded-[30px] px-6 py-5 text-sm text-white/68">
+            Checking your session...
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -52,6 +60,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/" className="rounded-full border border-white/10 px-4 py-2 hover:bg-white/6">Home</Link>
             <Link href="/app/dashboard" className="rounded-full border border-white/10 px-4 py-2 hover:bg-white/6">Dashboard</Link>
             <Link href="/app/scan/new" className="rounded-full border border-white/10 px-4 py-2 hover:bg-white/6">Start scan</Link>
+            <Link href="/app/scan/history" className="rounded-full border border-white/10 px-4 py-2 hover:bg-white/6">History</Link>
           </nav>
           <AccountMenu email={email ?? "Signed in"} />
         </header>

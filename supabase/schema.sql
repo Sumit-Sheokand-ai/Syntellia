@@ -23,6 +23,8 @@ create index if not exists scans_user_created_at_idx on public.scans (user_id, c
 alter table public.scans add column if not exists project_name text not null default 'General';
 alter table public.scans add column if not exists share_token text;
 alter table public.scans add column if not exists shared_at timestamptz;
+alter table public.scans add column if not exists share_token_expires_at timestamptz;
+alter table public.scans add column if not exists share_revoked_at timestamptz;
 create unique index if not exists scans_share_token_unique_idx on public.scans (share_token) where share_token is not null;
 create index if not exists scans_user_project_created_at_idx on public.scans (user_id, project_name, created_at desc);
 

@@ -3,6 +3,7 @@ const { requireAuth, resolveOptionalAuth } = require("./auth");
 const {
   createScan,
   createOrGetShareToken,
+  revokeShareToken,
   getScan,
   getSharedScanByToken,
   listScans
@@ -24,8 +25,15 @@ function sendApiError(res, req, status, code, message) {
 
 scanRouter.get("/scans", requireAuth, enforceUserRateLimit, async (req, res) => {
   try {
-    const scans = await listScans(req.user.id, req.accessToken);
-    res.json({ scans });
+    const status = typeof req.query.status === "string" ? req.query.status : "";
+    const pageSize = typeof req.query.pageSize === "string" ? req.query.pageSize : "";
+    const cursor = typeof req.query.cursor === "string" ? req.query.cursor : "";
+    const result = await listScans(req.user.id, req.accessToken, {
+      status,
+      pageSize,
+      cursor
+    });
+    res.json(result);
   } catch (error) {
     sendApiError(res, req, 500, "LIST_SCANS_FAILED", error.message);
   }
@@ -72,21 +80,35 @@ scanRouter.get("/scans/:scanId", requireAuth, enforceUserRateLimit, async (req, 
 
 scanRouter.post("/scans/:scanId/share-link", requireAuth, enforceUserRateLimit, async (req, res) => {
   try {
-    const shareToken = await createOrGetShareToken(req.user.id, req.accessToken, req.params.scanId);
-    if (!shareToken) {
+    const share = await createOrGetShareToken(req.user.id, req.accessToken, req.params.scanId);
+    if (!share) {
       return sendApiError(res, req, 404, "SCAN_NOT_FOUND", "Scan not found.");
     }
 
     res.json({
-      shareToken,
-      sharePath: `/shared/view?token=${encodeURIComponent(shareToken)}`
+      shareToken: share.shareToken,
+      sharePath: `/shared/view?token=${encodeURIComponent(share.shareToken)}`,
+      expiresAt: share.expiresAt
     });
   } catch (error) {
     sendApiError(res, req, 500, "SHARE_LINK_FAILED", error.message);
   }
 });
 
-scanRouter.get("/shared/:shareToken", async (req, res) => {
+scanRouter.post("/scans/:scanId/share-link/revoke", requireAuth, enforceUserRateLimit, async (req, res) => {
+  try {
+    const revoked = await revokeShareToken(req.user.id, req.accessToken, req.params.scanId);
+    if (!revoked) {
+      return sendApiError(res, req, 404, "SCAN_NOT_FOUND", "Scan not found.");
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    sendApiError(res, req, 500, "SHARE_LINK_REVOKE_FAILED", error.message);
+  }
+});
+
+scanRouter.get("/shared/:shareToken", enforceUserRateLimit, async (req, res) => {
   const shareToken = req.params.shareToken?.trim();
   if (!shareToken || shareToken.length < 8) {
     return sendApiError(res, req, 400, "INVALID_SHARE_TOKEN", "Share token is invalid.");
@@ -112,7 +134,7 @@ scanRouter.get("/billing/entitlements", requireAuth, enforceUserRateLimit, async
   }
 });
 
-scanRouter.post("/analytics/events", resolveOptionalAuth, async (req, res) => {
+scanRouter.post("/analytics/events", resolveOptionalAuth, enforceUserRateLimit, async (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const name = typeof body.name === "string" ? body.name : "";
   const props = body.props && typeof body.props === "object" && !Array.isArray(body.props)

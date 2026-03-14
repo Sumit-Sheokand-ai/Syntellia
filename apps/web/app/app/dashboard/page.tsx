@@ -105,7 +105,7 @@ export default function DashboardPage() {
 
     Promise.all([
       getEntitlementSummaryViaApi().catch(() => null),
-      listScansViaApi().catch(() => [] as ScanRecord[])
+      listScansViaApi({ pageSize: 100 }).then((result) => result.scans).catch(() => [] as ScanRecord[])
     ]).then(([entitlementResult, scans]) => {
       if (!isActive) return;
       setEntitlement(entitlementResult);

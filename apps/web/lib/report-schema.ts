@@ -136,6 +136,26 @@ export type SecurityTechnicalReport = {
     insecureLinkCount: number;
     insecureFormActionCount: number;
   };
+  scriptSurface?: {
+    mixedContentCount: number;
+    externalScriptCount: number;
+    scriptsWithoutSriCount: number;
+    inlineScriptCount: number;
+    externalScriptHosts: string[];
+  };
+  cors?: {
+    riskyPageCount: number;
+  };
+  cachePolicy?: {
+    riskyPageCount: number;
+  };
+  authSurface?: {
+    passwordFlowPageCount: number;
+    passwordFlowMissingCsrfCount: number;
+  };
+  hsts?: {
+    preloadReadyCount: number;
+  };
   crawlDiagnostics: {
     blockedByRobots: number;
     pageErrors: number;
@@ -149,6 +169,9 @@ export type SecurityTechnicalReport = {
     unsafeTargetBlank: number;
     insecureLinks: number;
     insecureForms: number;
+    mixedContent?: number;
+    scriptsWithoutSri?: number;
+    corsIssueCount?: number;
   }>;
   recommendations: Array<{
     title: string;

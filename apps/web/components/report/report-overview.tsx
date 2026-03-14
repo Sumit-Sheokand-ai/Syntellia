@@ -87,6 +87,26 @@ function buildSecurityFallback(report: ScanReport): SecurityTechnicalReport {
       insecureLinkCount: 0,
       insecureFormActionCount: 0
     },
+    scriptSurface: {
+      mixedContentCount: 0,
+      externalScriptCount: 0,
+      scriptsWithoutSriCount: 0,
+      inlineScriptCount: 0,
+      externalScriptHosts: []
+    },
+    cors: {
+      riskyPageCount: 0
+    },
+    cachePolicy: {
+      riskyPageCount: 0
+    },
+    authSurface: {
+      passwordFlowPageCount: 0,
+      passwordFlowMissingCsrfCount: 0
+    },
+    hsts: {
+      preloadReadyCount: 0
+    },
     crawlDiagnostics: {
       blockedByRobots: report.source.crawl?.blockedByRobots ?? 0,
       pageErrors: 0,
@@ -362,7 +382,33 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   Insecure HTTP form actions: {securityTechnical.linksAndForms.insecureFormActionCount}
                 </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Mixed-content assets: {securityTechnical.scriptSurface?.mixedContentCount ?? 0}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  External scripts without SRI: {securityTechnical.scriptSurface?.scriptsWithoutSriCount ?? 0}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  CORS risky pages: {securityTechnical.cors?.riskyPageCount ?? 0}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Cache-policy risk pages: {securityTechnical.cachePolicy?.riskyPageCount ?? 0}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Password-flow pages missing CSRF signal: {securityTechnical.authSurface?.passwordFlowMissingCsrfCount ?? 0}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  HSTS preload-ready pages: {securityTechnical.hsts?.preloadReadyCount ?? 0}
+                </div>
               </div>
+              {(securityTechnical.scriptSurface?.externalScriptHosts?.length ?? 0) > 0 ? (
+                <div className="mt-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">External script hosts (sample)</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {securityTechnical.scriptSurface?.externalScriptHosts?.map(sectionChip)}
+                  </div>
+                </div>
+              ) : null}
               {securityTechnical.cookies.issues.length ? (
                 <div className="mt-5 space-y-2">
                   {securityTechnical.cookies.issues.map((issue) => (

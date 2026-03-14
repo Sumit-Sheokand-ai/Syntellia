@@ -48,6 +48,33 @@
         "tags": ["scans"],
         "summary": "List scans for the authenticated user",
         "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["Queued", "Running", "Completed", "Failed"]
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Scans fetched",
@@ -59,9 +86,10 @@
                     "scans": {
                       "type": "array",
                       "items": { "$ref": "#/components/schemas/ScanRecord" }
-                    }
+                    },
+                    "nextCursor": { "type": ["string", "null"], "format": "date-time" }
                   },
-                  "required": ["scans"]
+                  "required": ["scans", "nextCursor"]
                 }
               }
             }
@@ -122,6 +150,93 @@
             }
           },
           "401": { "$ref": "#/components/responses/AuthError" },
+          "404": { "$ref": "#/components/responses/ApiError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/scans/{scanId}/share-link": {
+      "post": {
+        "tags": ["scans"],
+        "summary": "Create or rotate a share link for a scan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "scanId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share link ready",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ShareLinkResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/AuthError" },
+          "404": { "$ref": "#/components/responses/ApiError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/scans/{scanId}/share-link/revoke": {
+      "post": {
+        "tags": ["scans"],
+        "summary": "Revoke an active share link for a scan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "scanId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Share link revoked"
+          },
+          "401": { "$ref": "#/components/responses/AuthError" },
+          "404": { "$ref": "#/components/responses/ApiError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/shared/{shareToken}": {
+      "get": {
+        "tags": ["scans"],
+        "summary": "Fetch a completed scan report by share token",
+        "parameters": [
+          {
+            "name": "shareToken",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shared scan found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scan": { "$ref": "#/components/schemas/SharedScanRecord" }
+                  },
+                  "required": ["scan"]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ApiError" },
           "404": { "$ref": "#/components/responses/ApiError" },
           "429": { "$ref": "#/components/responses/RateLimitError" },
           "500": { "$ref": "#/components/responses/ApiError" }
@@ -208,6 +323,8 @@
           "completedAt": { "type": ["string", "null"], "format": "date-time" },
           "error": { "type": ["string", "null"] },
           "shareToken": { "type": ["string", "null"] },
+          "shareTokenExpiresAt": { "type": ["string", "null"], "format": "date-time" },
+          "shareRevokedAt": { "type": ["string", "null"], "format": "date-time" },
           "report": {
             "type": ["object", "null"],
             "description": "Structured scan output with UI/styling insights (`uiStyle`) and security/technical insights (`securityTechnical`).",
@@ -231,6 +348,58 @@
           "createdAt",
           "report"
         ]
+      },
+      "SharedScanRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "siteName": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "scanSize": { "type": "string" },
+          "loginMode": { "type": "string" },
+          "focusArea": { "type": "string" },
+          "projectName": { "type": "string" },
+          "pageLimit": { "type": "integer", "minimum": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["Queued", "Running", "Completed", "Failed"]
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "startedAt": { "type": ["string", "null"], "format": "date-time" },
+          "completedAt": { "type": ["string", "null"], "format": "date-time" },
+          "error": { "type": ["string", "null"] },
+          "shareToken": { "type": ["string", "null"] },
+          "shareTokenExpiresAt": { "type": ["string", "null"], "format": "date-time" },
+          "report": {
+            "type": ["object", "null"],
+            "properties": {
+              "uiStyle": { "type": "object" },
+              "securityTechnical": { "type": "object" }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "siteName",
+          "url",
+          "scanSize",
+          "loginMode",
+          "focusArea",
+          "projectName",
+          "pageLimit",
+          "status",
+          "createdAt",
+          "report"
+        ]
+      },
+      "ShareLinkResponse": {
+        "type": "object",
+        "properties": {
+          "shareToken": { "type": "string" },
+          "sharePath": { "type": "string" },
+          "expiresAt": { "type": ["string", "null"], "format": "date-time" }
+        },
+        "required": ["shareToken", "sharePath", "expiresAt"]
       },
       "ErrorResponse": {
         "type": "object",

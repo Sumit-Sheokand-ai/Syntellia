@@ -2,6 +2,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type {
   CreateScanInput,
   EntitlementSummary,
+  ScanListPage,
   ScanRecord,
   SharedScanRecord
 } from "@/lib/scan-types";
@@ -53,6 +54,9 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response));
   }
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
   return response.json() as Promise<T>;
 }
@@ -70,6 +74,9 @@ async function publicApiRequest<T>(path: string, options: RequestInit = {}): Pro
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response));
   }
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
   return response.json() as Promise<T>;
 }
@@ -84,14 +91,33 @@ export async function createScanViaApi(input: CreateScanInput): Promise<ScanReco
 export async function getScanViaApi(scanId: string): Promise<ScanRecord> {
   return apiRequest<ScanRecord>(`/api/scans/${scanId}`);
 }
+type ListScansOptions = {
+  status?: "All" | "Queued" | "Running" | "Completed" | "Failed";
+  pageSize?: number;
+  cursor?: string | null;
+};
 
-export async function listScansViaApi(): Promise<ScanRecord[]> {
-  const response = await apiRequest<{ scans: ScanRecord[] }>("/api/scans");
-  return response.scans;
+function buildListScansQuery(options: ListScansOptions = {}) {
+  const params = new URLSearchParams();
+  if (options.status && options.status !== "All") params.set("status", options.status);
+  if (options.pageSize && Number.isFinite(options.pageSize)) params.set("pageSize", String(options.pageSize));
+  if (options.cursor) params.set("cursor", options.cursor);
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
-export async function createShareLinkViaApi(scanId: string): Promise<{ shareToken: string; sharePath: string }> {
-  return apiRequest<{ shareToken: string; sharePath: string }>(`/api/scans/${scanId}/share-link`, {
+export async function listScansViaApi(options: ListScansOptions = {}): Promise<ScanListPage> {
+  return apiRequest<ScanListPage>(`/api/scans${buildListScansQuery(options)}`);
+}
+
+export async function createShareLinkViaApi(scanId: string): Promise<{ shareToken: string; sharePath: string; expiresAt?: string | null }> {
+  return apiRequest<{ shareToken: string; sharePath: string; expiresAt?: string | null }>(`/api/scans/${scanId}/share-link`, {
+    method: "POST"
+  });
+}
+
+export async function revokeShareLinkViaApi(scanId: string): Promise<void> {
+  await apiRequest<void>(`/api/scans/${scanId}/share-link/revoke`, {
     method: "POST"
   });
 }

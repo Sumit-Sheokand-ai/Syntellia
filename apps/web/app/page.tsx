@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Activity, ArrowRight, Blocks, Compass, ScanSearch, ShieldCheck } from "lucide-react";
+import { Activity, ArrowRight, Blocks, Compass, ShieldCheck } from "lucide-react";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { ClickSpark } from "@/components/reactbits/click-spark";
-import { GradientText } from "@/components/reactbits/gradient-text";
 import { StarBorder } from "@/components/reactbits/star-border";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ShellCard } from "@/components/ui/shell-card";
@@ -78,13 +77,13 @@ export default function HomePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               {[
-                ["120+", "style signals captured"],
-                ["3 views", "scan, report, compare"],
-                ["JSON", "structured export ready"]
-              ].map(([value, label]) => (
-                <div key={label} className="rounded-[24px] border border-white/10 bg-white/6 px-5 py-4 backdrop-blur-xl">
-                  <div className="text-2xl font-semibold text-white">{value}</div>
-                  <div className="mt-1 text-sm text-white/55">{label}</div>
+                ["Real scan processing", "Scans run through a live backend and worker pipeline."],
+                ["Account-scoped data", "Scan records are isolated per authenticated user."],
+                ["Actionable reports", "Findings are rendered in a structured, readable format."]
+              ].map(([title, detail]) => (
+                <div key={title} className="rounded-[24px] border border-white/10 bg-white/6 px-5 py-4 backdrop-blur-xl">
+                  <div className="text-base font-semibold text-white">{title}</div>
+                  <div className="mt-2 text-sm text-white/60">{detail}</div>
                 </div>
               ))}
             </div>
@@ -104,34 +103,24 @@ export default function HomePage() {
               </div>
               <StarBorder color="#6ca8ff" speed="4s">
                 <div className="rounded-[26px] bg-[#040916]/70 p-6">
-                  <div className="flex items-center gap-3 text-sm text-white/55">
-                    <ScanSearch className="h-4 w-4 text-[#7cf5d4]" />
-                    your-page-link.com
-                  </div>
+                  <div className="text-sm uppercase tracking-[0.24em] text-white/45">Report pipeline</div>
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
                     {[
-                      ["Typography system", "9 recurring text roles"],
-                      ["Primary palette", "4 dominant colors"],
-                      ["Component inventory", "18 reusable patterns"],
-                      ["UX findings", "6 high-signal observations"]
+                      ["Queued", "Scan request saved and scheduled for processing."],
+                      ["Running", "Worker fetches and analyzes the target page."],
+                      ["Completed", "Findings and report data are stored and returned."],
+                      ["Failed", "Clear error details are captured for troubleshooting."]
                     ].map(([label, value]) => (
                       <div key={label} className="rounded-[22px] border border-white/10 bg-white/6 p-4">
                         <div className="text-sm text-white/52">{label}</div>
-                        <div className="mt-2 text-lg font-medium text-white">{value}</div>
+                        <div className="mt-2 text-sm leading-7 text-white/78">{value}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               </StarBorder>
-              <div className="rounded-[24px] border border-white/10 bg-white/6 p-5">
-                <GradientText className="text-sm uppercase tracking-[0.3em]">Output schema</GradientText>
-                <pre className="mt-4 overflow-x-auto text-sm leading-7 text-white/72">
-{`{
-  "designTokens": ["colors", "type", "spacing"],
-  "componentInventory": ["hero", "cards", "cta"],
-  "uxFindings": ["contrast", "cta density", "nav depth"]
-}`}
-                </pre>
+              <div className="rounded-[24px] border border-white/10 bg-white/6 p-5 text-sm leading-7 text-white/70">
+                Reports are generated from live scan execution states and stored results, not static demo payloads.
               </div>
             </div>
           </ShellCard>
