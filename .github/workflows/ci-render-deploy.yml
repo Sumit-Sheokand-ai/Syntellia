@@ -190,16 +190,7 @@ jobs:
               exit 1
             fi
 
-            metrics_bearer_token="$(node - "$auth_file" <<'NODE'
-            const fs = require("node:fs");
-            const authFile = process.argv[2];
-            const payload = JSON.parse(fs.readFileSync(authFile, "utf8"));
-            if (typeof payload?.access_token !== "string" || !payload.access_token) {
-              process.exit(1);
-            }
-            process.stdout.write(payload.access_token);
-            NODE
-            )" || {
+            metrics_bearer_token="$(node -e "const fs=require('node:fs');const payload=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(typeof payload?.access_token!=='string'||!payload.access_token){process.exit(1);}process.stdout.write(payload.access_token);" "$auth_file")" || {
               echo "Supabase auth response did not include an access_token."
               rm -f "$auth_file"
               exit 1
@@ -211,7 +202,6 @@ jobs:
           if [ -z "$metrics_bearer_token" ]; then
             echo "BACKEND_METRICS_URL is configured but no metrics auth is available."
             echo "Provide SUPABASE_METRICS_AUTH_EMAIL + SUPABASE_METRICS_AUTH_PASSWORD (recommended) or BACKEND_METRICS_BEARER_TOKEN (fallback)."
-            exit 1
             exit 1
           fi
 
