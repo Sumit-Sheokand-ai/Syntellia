@@ -29,6 +29,19 @@ export type ImplementationSnippet = {
   code: string;
 };
 
+export type ExecutiveSummary = {
+  headline: string;
+  highlights: string[];
+  risks: string[];
+  opportunities: string[];
+};
+
+export type OpportunityMap = {
+  quickWins: string[];
+  mediumTerm: string[];
+  bigBets: string[];
+};
+
 export type CrawlSourceMeta = {
   pagesScanned: number;
   pagesAttempted: number;
@@ -68,13 +81,27 @@ export type ExtractedPageSource = {
     ctaLabels: string[];
     trustSignals: string[];
     highlightWords: string[];
+    trustCoverage?: {
+      hasContactDetailsRate: number;
+      hasTestimonialsRate: number;
+      hasFaqRate: number;
+      hasPolicyPagesRate: number;
+    };
     readability: {
       paragraphCount: number;
       avgParagraphWords: number;
+      longParagraphCount?: number;
+      avgWordsPerSentence?: number;
     };
     accessibility: {
       altCoverage: number;
       formLabelCoverage: number;
+    };
+    structure?: {
+      headingJumpCount: number;
+    };
+    forms?: {
+      complexForms: number;
     };
   };
 };
@@ -189,6 +216,7 @@ export type SecurityTechnicalReport = {
 };
 
 export type ScanReport = {
+  reportVersion?: string;
   siteName: string;
   scannedAt: string;
   scope: string;
@@ -199,6 +227,8 @@ export type ScanReport = {
   findings: ReportFinding[];
   components: string[];
   interactions: string[];
+  executiveSummary?: ExecutiveSummary;
+  opportunityMap?: OpportunityMap;
   uiStyle?: UiStyleReport;
   securityTechnical?: SecurityTechnicalReport;
   source: ExtractedPageSource;

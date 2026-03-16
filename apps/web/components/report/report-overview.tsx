@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import type {
+  ExecutiveSummary,
   ImplementationSnippet,
+  OpportunityMap,
   ScanReport,
   SecurityTechnicalReport,
   UiStyleReport
@@ -211,6 +213,35 @@ function buildSecurityFallback(report: ScanReport): SecurityTechnicalReport {
   };
 }
 
+function buildExecutiveSummaryFallback(report: ScanReport): ExecutiveSummary {
+  const highlights = report.scores.slice(0, 3).map((score) => `${score.label}: ${score.value}/100 · ${score.trend}`);
+  const risks = report.findings
+    .filter((finding) => finding.severity === "high")
+    .map((finding) => finding.title)
+    .slice(0, 3);
+  const opportunities = (report.prioritizedActions ?? []).slice(0, 3).map((action) => action.title);
+
+  return {
+    headline: `${report.siteName} has a clear foundation with focused opportunities to lift confidence and conversion.`,
+    highlights,
+    risks: risks.length ? risks : ["No major customer-facing risks surfaced in this scan."],
+    opportunities: opportunities.length ? opportunities : ["Focus on incremental improvements to customer clarity."]
+  };
+}
+
+function buildOpportunityMapFallback(report: ScanReport): OpportunityMap {
+  const actions = report.prioritizedActions ?? [];
+  const quickWins = actions.filter((action) => action.effort === "low").map((action) => action.title);
+  const mediumTerm = actions.filter((action) => action.effort === "medium").map((action) => action.title);
+  const bigBets = actions.filter((action) => action.effort === "high").map((action) => action.title);
+
+  return {
+    quickWins: quickWins.length ? quickWins : actions.slice(0, 2).map((action) => action.title),
+    mediumTerm: mediumTerm.length ? mediumTerm : actions.slice(2, 4).map((action) => action.title),
+    bigBets: bigBets.length ? bigBets : actions.slice(4, 6).map((action) => action.title)
+  };
+}
+
 function sectionChip(value: string) {
   return (
     <span key={value} className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm text-white/75">
@@ -245,6 +276,38 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
     () => report.securityTechnical ?? buildSecurityFallback(report),
     [report]
   );
+  const executiveSummary = useMemo(
+    () => report.executiveSummary ?? buildExecutiveSummaryFallback(report),
+    [report]
+  );
+  const opportunityMap = useMemo(
+    () => report.opportunityMap ?? buildOpportunityMapFallback(report),
+    [report]
+  );
+  const prioritizedActions = useMemo(
+    () => (report.prioritizedActions?.length ? report.prioritizedActions : uiStyle.prioritizedActions ?? []),
+    [report, uiStyle]
+  );
+  const customerSignals = report.source.customerSignals;
+  const trustCoverage = useMemo(
+    () => customerSignals?.trustCoverage ?? {
+      hasContactDetailsRate: 0,
+      hasTestimonialsRate: 0,
+      hasFaqRate: 0,
+      hasPolicyPagesRate: 0
+    },
+    [customerSignals]
+  );
+  const readabilitySignals = useMemo(
+    () => ({
+      longParagraphCount: customerSignals?.readability.longParagraphCount ?? uiStyle.contentClarity.longParagraphCount ?? 0,
+      avgWordsPerSentence: customerSignals?.readability.avgWordsPerSentence ?? 0,
+      avgParagraphWords: customerSignals?.readability.avgParagraphWords ?? uiStyle.contentClarity.avgParagraphWords ?? 0
+    }),
+    [customerSignals, uiStyle]
+  );
+  const headingJumpCount = customerSignals?.structure?.headingJumpCount ?? 0;
+  const complexForms = customerSignals?.forms?.complexForms ?? 0;
   const implementationSnippets = useMemo(
     () => uiStyle.implementationSnippets?.length
       ? uiStyle.implementationSnippets
@@ -356,6 +419,89 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
       {activeTab === "ui" ? (
         <div id="report-panel-ui" role="tabpanel" aria-labelledby="report-tab-ui" className="space-y-8">
+          <div className="grid gap-5 lg:grid-cols-[1.15fr,0.85fr]">
+            <ShellCard className="p-8">
+              <p className="text-sm uppercase tracking-[0.24em] text-white/45">Executive snapshot</p>
+              <h2 className="mt-4 text-2xl font-semibold text-white">{executiveSummary.headline}</h2>
+              <div className="mt-6 grid gap-4 md:grid-cols-3 text-sm text-white/72">
+                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Highlights</p>
+                  <ul className="mt-3 space-y-2">
+                    {executiveSummary.highlights.map((item) => (
+                      <li key={item} className="text-white/78">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Watch-outs</p>
+                  <ul className="mt-3 space-y-2">
+                    {executiveSummary.risks.map((item) => (
+                      <li key={item} className="text-white/78">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Best opportunities</p>
+                  <ul className="mt-3 space-y-2">
+                    {executiveSummary.opportunities.map((item) => (
+                      <li key={item} className="text-white/78">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </ShellCard>
+            <ShellCard className="p-8">
+              <p className="text-sm uppercase tracking-[0.24em] text-white/45">Opportunity map</p>
+              <div className="mt-6 space-y-4 text-sm text-white/75">
+                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/45">Quick wins</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {opportunityMap.quickWins.map(sectionChip)}
+                  </div>
+                </div>
+                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/45">Medium-term lifts</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {opportunityMap.mediumTerm.map(sectionChip)}
+                  </div>
+                </div>
+                <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/45">Big bets</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {opportunityMap.bigBets.map(sectionChip)}
+                  </div>
+                </div>
+              </div>
+            </ShellCard>
+          </div>
+
+          <ShellCard className="p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm uppercase tracking-[0.24em] text-white/45">What to do first</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">A focused next-step roadmap</h2>
+              </div>
+              <p className="text-sm text-white/52">Top 3 actions</p>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {prioritizedActions.slice(0, 3).map((action, index) => (
+                <div key={action.title} className="rounded-[22px] border border-white/10 bg-white/5 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Step {index + 1}</p>
+                  <h3 className="mt-3 text-lg font-semibold text-white">{action.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-white/70">{action.detail}</p>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/55">
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                      {getImpactLabel(action.impact)} impact
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                      {action.effort} effort
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ShellCard>
+
           <ShellCard className="p-8">
             <p className="text-sm uppercase tracking-[0.24em] text-white/45">UI & styling summary</p>
             <p className="mt-4 text-base leading-8 text-white/72">{uiStyle.summary}</p>
@@ -380,6 +526,43 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   <p className="mt-3 text-xs leading-5 text-white/55">{score.trend}</p>
                 </div>
               ))}
+            </div>
+          </ShellCard>
+
+          <ShellCard className="p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-semibold text-white">Trust and friction signals</h2>
+              <p className="text-sm text-white/52">Customer reassurance + conversion drag</p>
+            </div>
+            <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+              <div className="grid gap-3 text-sm text-white/75">
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Contact visibility: {trustCoverage.hasContactDetailsRate}% of pages
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Testimonials presence: {trustCoverage.hasTestimonialsRate}% of pages
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  FAQ coverage: {trustCoverage.hasFaqRate}% of pages
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Policy visibility: {trustCoverage.hasPolicyPagesRate}% of pages
+                </div>
+              </div>
+              <div className="grid gap-3 text-sm text-white/75">
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Long paragraphs: {readabilitySignals.longParagraphCount}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Avg words per sentence: {readabilitySignals.avgWordsPerSentence}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Heading jumps: {headingJumpCount}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Complex forms: {complexForms}
+                </div>
+              </div>
             </div>
           </ShellCard>
 
@@ -463,7 +646,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               <p className="text-sm text-white/52">Prioritized by customer-facing impact</p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {(uiStyle.prioritizedActions.length ? uiStyle.prioritizedActions : report.prioritizedActions ?? []).map((action) => (
+              {prioritizedActions.map((action) => (
                 <details key={action.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
                   <summary className="cursor-pointer list-none">
                     <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">

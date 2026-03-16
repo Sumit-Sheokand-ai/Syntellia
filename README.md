@@ -52,6 +52,13 @@ Backend + worker runtime:
 - `SCAN_LEASE_DURATION_SECONDS`
 - `SCAN_RETRY_BASE_DELAY_MS`
 - `SCAN_RETRY_MAX_DELAY_MS`
+- `SCAN_MAX_DEPTH_MODE` (`maximum` to default all scans to the deepest profile)
+- `SCAN_MAX_DEPTH_DEFAULT` (optional override for crawl depth)
+- `SCAN_PAGE_LIMIT_DEFAULT` (optional override for pages scanned)
+- `SCAN_TIME_BUDGET_MS` (optional override for crawl time budget)
+- `SCAN_MAX_DEPTH_CAP` (hard cap for effective crawl depth)
+- `SCAN_PAGE_LIMIT_CAP` (hard cap for effective page limit)
+- `SCAN_TIME_BUDGET_CAP_MS` (hard cap for effective crawl time budget)
 - `SCAN_TELEMETRY_HEARTBEAT_MS`
 - `SCAN_TELEMETRY_SAMPLE_SIZE`
 - `WORKER_TELEMETRY_EXPORT_URL` (optional override for worker export sink)
@@ -59,6 +66,11 @@ Backend + worker runtime:
 - `TELEMETRY_EXPORT_BEARER_TOKEN` (optional bearer auth for sink)
 - `TELEMETRY_EXPORT_TIMEOUT_MS`
 - `PORT` (backend only; Render sets this automatically)
+
+Worker depth-control notes:
+- Effective values are resolved as: base profile -> optional defaults -> hard caps.
+- `SCAN_MAX_DEPTH_MODE=maximum` applies the largest built-in profile values before overrides/caps.
+- Caps always win and are recommended for cost and runtime guardrails.
 
 ## Local development
 1. Install dependencies:

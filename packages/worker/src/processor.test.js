@@ -3,6 +3,42 @@ const assert = require("node:assert/strict");
 const cheerio = require("cheerio");
 const { __testables } = require("./processor");
 
+const PROCESSOR_MODULE_PATH = require.resolve("./processor");
+
+function loadProcessorWithEnv(overrides) {
+  const originalEnv = {
+    SCAN_MAX_DEPTH_MODE: process.env.SCAN_MAX_DEPTH_MODE,
+    SCAN_MAX_DEPTH_DEFAULT: process.env.SCAN_MAX_DEPTH_DEFAULT,
+    SCAN_PAGE_LIMIT_DEFAULT: process.env.SCAN_PAGE_LIMIT_DEFAULT,
+    SCAN_TIME_BUDGET_MS: process.env.SCAN_TIME_BUDGET_MS,
+    SCAN_MAX_DEPTH_CAP: process.env.SCAN_MAX_DEPTH_CAP,
+    SCAN_PAGE_LIMIT_CAP: process.env.SCAN_PAGE_LIMIT_CAP,
+    SCAN_TIME_BUDGET_CAP_MS: process.env.SCAN_TIME_BUDGET_CAP_MS
+  };
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined || value === null) {
+      delete process.env[key];
+    } else {
+      process.env[key] = String(value);
+    }
+  }
+
+  delete require.cache[PROCESSOR_MODULE_PATH];
+  const loaded = require("./processor");
+
+  for (const [key, value] of Object.entries(originalEnv)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  delete require.cache[PROCESSOR_MODULE_PATH];
+  return loaded;
+}
+
 test("evaluateSecurityHeaders marks missing and weak values", () => {
   const result = __testables.evaluateSecurityHeaders({
     "content-security-policy": "default-src * 'unsafe-inline'",
@@ -152,4 +188,38 @@ test("computeSecurityPostureScore penalizes missing coverage and weak hardening"
 
   assert.ok(score < 80);
   assert.ok(score >= 35);
+});
+
+test("getSizeDetails uses maximum mode defaults", () => {
+  const loaded = loadProcessorWithEnv({
+    SCAN_MAX_DEPTH_MODE: "maximum",
+    SCAN_MAX_DEPTH_DEFAULT: undefined,
+    SCAN_PAGE_LIMIT_DEFAULT: undefined,
+    SCAN_TIME_BUDGET_MS: undefined,
+    SCAN_MAX_DEPTH_CAP: undefined,
+    SCAN_PAGE_LIMIT_CAP: undefined,
+    SCAN_TIME_BUDGET_CAP_MS: undefined
+  });
+
+  const result = loaded.__testables.getSizeDetails("Quick check");
+  assert.equal(result.maxDepth, 2);
+  assert.equal(result.pageLimit, 10);
+  assert.equal(result.timeBudgetMs, 55_000);
+});
+
+test("getSizeDetails applies overrides and caps", () => {
+  const loaded = loadProcessorWithEnv({
+    SCAN_MAX_DEPTH_MODE: "maximum",
+    SCAN_MAX_DEPTH_DEFAULT: "8",
+    SCAN_PAGE_LIMIT_DEFAULT: "40",
+    SCAN_TIME_BUDGET_MS: "200000",
+    SCAN_MAX_DEPTH_CAP: "3",
+    SCAN_PAGE_LIMIT_CAP: "12",
+    SCAN_TIME_BUDGET_CAP_MS: "60000"
+  });
+
+  const result = loaded.__testables.getSizeDetails("Standard review");
+  assert.equal(result.maxDepth, 3);
+  assert.equal(result.pageLimit, 12);
+  assert.equal(result.timeBudgetMs, 60_000);
 });

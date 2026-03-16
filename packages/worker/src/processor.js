@@ -15,14 +15,14 @@ const GENERIC_FONT_TOKENS = new Set([
   "fantasy", "ui-sans-serif", "ui-serif", "ui-monospace"
 ]);
 const SECURITY_HEADER_RULES = [
-  { key: "content-security-policy", label: "Content-Security-Policy", impact: "high" },
-  { key: "strict-transport-security", label: "Strict-Transport-Security", impact: "high" },
-  { key: "x-frame-options", label: "X-Frame-Options", impact: "high" },
-  { key: "x-content-type-options", label: "X-Content-Type-Options", impact: "medium" },
-  { key: "referrer-policy", label: "Referrer-Policy", impact: "medium" },
-  { key: "permissions-policy", label: "Permissions-Policy", impact: "medium" },
-  { key: "cross-origin-opener-policy", label: "Cross-Origin-Opener-Policy", impact: "medium" },
-  { key: "cross-origin-resource-policy", label: "Cross-Origin-Resource-Policy", impact: "low" }
+  { key: "content-security-policy", label: "Content protection policy", impact: "high" },
+  { key: "strict-transport-security", label: "HTTPS enforcement", impact: "high" },
+  { key: "x-frame-options", label: "Clickjacking protection", impact: "high" },
+  { key: "x-content-type-options", label: "Content type safety", impact: "medium" },
+  { key: "referrer-policy", label: "Referrer privacy", impact: "medium" },
+  { key: "permissions-policy", label: "Browser feature limits", impact: "medium" },
+  { key: "cross-origin-opener-policy", label: "Cross-origin isolation", impact: "medium" },
+  { key: "cross-origin-resource-policy", label: "Cross-origin resource control", impact: "low" }
 ];
 const SECURITY_HEADER_RULES_BY_KEY = Object.fromEntries(
   SECURITY_HEADER_RULES.map((rule) => [rule.key, rule])
@@ -56,6 +56,28 @@ const sizeConfig = {
     detail: "A broader review for a fuller picture."
   }
 };
+
+function readOptionalPositiveInteger(rawValue) {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function applyCap(value, cap) {
+  if (!Number.isFinite(cap) || cap <= 0) return value;
+  return Math.min(value, cap);
+}
+
+const MAX_DEPTH_MODE = (process.env.SCAN_MAX_DEPTH_MODE ?? "").toLowerCase();
+const MAX_DEPTH_OVERRIDE = readOptionalPositiveInteger(process.env.SCAN_MAX_DEPTH_DEFAULT);
+const PAGE_LIMIT_OVERRIDE = readOptionalPositiveInteger(process.env.SCAN_PAGE_LIMIT_DEFAULT);
+const TIME_BUDGET_OVERRIDE_MS = readOptionalPositiveInteger(process.env.SCAN_TIME_BUDGET_MS);
+const MAX_DEPTH_CAP = readOptionalPositiveInteger(process.env.SCAN_MAX_DEPTH_CAP);
+const PAGE_LIMIT_CAP = readOptionalPositiveInteger(process.env.SCAN_PAGE_LIMIT_CAP);
+const TIME_BUDGET_CAP_MS = readOptionalPositiveInteger(process.env.SCAN_TIME_BUDGET_CAP_MS);
+const GLOBAL_MAX_DEPTH = Math.max(...Object.values(sizeConfig).map((entry) => entry.maxDepth));
+const GLOBAL_MAX_PAGE_LIMIT = Math.max(...Object.values(sizeConfig).map((entry) => entry.pageLimit));
+const GLOBAL_MAX_TIME_BUDGET = Math.max(...Object.values(sizeConfig).map((entry) => entry.timeBudgetMs));
 
 const focusConfig = {
   "Overall feel": {
@@ -1208,7 +1230,28 @@ async function extractSinglePage(url, options) {
 }
 
 function getSizeDetails(scanSize) {
-  return sizeConfig[scanSize] ?? sizeConfig["Standard review"];
+  const base = sizeConfig[scanSize] ?? sizeConfig["Standard review"];
+  const useMaximum = MAX_DEPTH_MODE === "maximum";
+
+  const resolvedMaxDepth = applyCap(
+    MAX_DEPTH_OVERRIDE ?? (useMaximum ? GLOBAL_MAX_DEPTH : base.maxDepth),
+    MAX_DEPTH_CAP
+  );
+  const resolvedPageLimit = applyCap(
+    PAGE_LIMIT_OVERRIDE ?? (useMaximum ? GLOBAL_MAX_PAGE_LIMIT : base.pageLimit),
+    PAGE_LIMIT_CAP
+  );
+  const resolvedTimeBudgetMs = applyCap(
+    TIME_BUDGET_OVERRIDE_MS ?? (useMaximum ? GLOBAL_MAX_TIME_BUDGET : base.timeBudgetMs),
+    TIME_BUDGET_CAP_MS
+  );
+
+  return {
+    ...base,
+    pageLimit: resolvedPageLimit,
+    maxDepth: resolvedMaxDepth,
+    timeBudgetMs: resolvedTimeBudgetMs
+  };
 }
 
 function getFocusDetails(focusArea) {
@@ -1643,8 +1686,8 @@ function buildPrioritizedActions(aggregate) {
 
   if (aggregate.ctaLabels.length === 0) {
     actions.push({
-      title: "Clarify one primary call-to-action on key pages",
-      detail: "Several scanned pages lacked clear action labels. Add a consistent primary CTA above the fold.",
+      title: "Make the primary next step unmistakable",
+      detail: "Several scanned pages lacked a clear action. Add a consistent primary button near the top of key pages.",
       impact: "high",
       effort: "medium",
       confidence: 0.84
@@ -1653,8 +1696,8 @@ function buildPrioritizedActions(aggregate) {
 
   if (aggregate.trustLinks.length < 3) {
     actions.push({
-      title: "Improve trust visibility near conversion points",
-      detail: "Trust links (privacy, terms, support/contact) are sparse. Surface reassurance closer to decision points.",
+      title: "Place trust signals where customers decide",
+      detail: "Privacy, support, and policy links are hard to find. Surface them near pricing and sign-up actions.",
       impact: "high",
       effort: "low",
       confidence: 0.79
@@ -1663,8 +1706,8 @@ function buildPrioritizedActions(aggregate) {
 
   if (aggregate.accessibility.altCoverage < 75 || aggregate.accessibility.formLabelCoverage < 75) {
     actions.push({
-      title: "Raise accessibility baseline for images and forms",
-      detail: `Average alt coverage is ${aggregate.accessibility.altCoverage}% and form label coverage is ${aggregate.accessibility.formLabelCoverage}%.`,
+      title: "Make images and form fields easier to understand",
+      detail: `Images and form fields are described ${Math.min(100, aggregate.accessibility.altCoverage)}% and ${Math.min(100, aggregate.accessibility.formLabelCoverage)}% of the time. Aim for consistent descriptions on every key page.`,
       impact: "medium",
       effort: "medium",
       confidence: 0.81
@@ -1673,8 +1716,8 @@ function buildPrioritizedActions(aggregate) {
 
   if (aggregate.readability.longParagraphCount > 2 || aggregate.readability.avgWordsPerSentence > 24) {
     actions.push({
-      title: "Reduce copy density for faster scanning",
-      detail: "Long paragraphs and dense sentence structure can hide value. Break content into shorter, scannable blocks.",
+      title: "Break dense sections into scannable chunks",
+      detail: "Long paragraphs make it harder to find key points. Use shorter sections, bullets, and bold cues to guide attention.",
       impact: "medium",
       effort: "low",
       confidence: 0.72
@@ -1683,8 +1726,8 @@ function buildPrioritizedActions(aggregate) {
 
   if (aggregate.structure.headingJumpCount > 0) {
     actions.push({
-      title: "Fix heading hierarchy jumps",
-      detail: "Heading level skips were detected. Consistent hierarchy improves comprehension and accessibility.",
+      title: "Keep headings in a clear order",
+      detail: "Some sections jump between heading sizes. A consistent structure helps customers follow the story.",
       impact: "medium",
       effort: "low",
       confidence: 0.76
@@ -1693,8 +1736,8 @@ function buildPrioritizedActions(aggregate) {
 
   if (!actions.length) {
     actions.push({
-      title: "Preserve current clarity and trust baseline",
-      detail: "Current signals look healthy. Prioritize incremental conversion experiments on high-traffic pages.",
+      title: "Protect what is already working",
+      detail: "The main signals look solid. Focus on small experiments on high-traffic pages to raise conversions.",
       impact: "low",
       effort: "low",
       confidence: 0.68
@@ -1776,18 +1819,18 @@ function buildSecurityRecommendations(aggregate, scanData) {
 
   if (aggregate.securityTechnical.transport.httpsCoverage < 100) {
     actions.push({
-      title: "Enforce HTTPS across all scanned pages",
-      detail: `Only ${aggregate.securityTechnical.transport.httpsCoverage}% of scanned pages resolved over HTTPS.`,
+      title: "Make sure every page loads securely",
+      detail: `Only ${aggregate.securityTechnical.transport.httpsCoverage}% of scanned pages used HTTPS.`,
       impact: "high"
     });
   }
 
   if (highImpactMissing.length > 0) {
     actions.push({
-      title: "Add missing high-impact security headers",
+      title: "Add essential browser protections",
       detail: highImpactMissing
         .slice(0, 3)
-        .map((entry) => `${entry.label} (missing on ${entry.pages} page${entry.pages === 1 ? "" : "s"})`)
+        .map((entry) => `${entry.label} missing on ${entry.pages} page${entry.pages === 1 ? "" : "s"}`)
         .join(", "),
       impact: "high"
     });
@@ -1795,23 +1838,23 @@ function buildSecurityRecommendations(aggregate, scanData) {
 
   if (aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount > 0) {
     actions.push({
-      title: "Harden external links opened in new tabs",
-      detail: `${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount} link(s) use target=_blank without rel=noopener/noreferrer.`,
+      title: "Protect links that open in new tabs",
+      detail: `${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount} link(s) open in a new tab without extra safety flags.`,
       impact: "medium"
     });
   }
 
   if (aggregate.securityTechnical.linksAndForms.insecureFormActionCount > 0) {
     actions.push({
-      title: "Remove HTTP form submission paths",
-      detail: `${aggregate.securityTechnical.linksAndForms.insecureFormActionCount} form action(s) submit over HTTP.`,
+      title: "Secure every form submission",
+      detail: `${aggregate.securityTechnical.linksAndForms.insecureFormActionCount} form action(s) still submit over HTTP.`,
       impact: "high"
     });
   }
 
   if (aggregate.securityTechnical.scriptSurface.mixedContentCount > 0) {
     actions.push({
-      title: "Eliminate mixed content references",
+      title: "Remove insecure assets on secure pages",
       detail: `${aggregate.securityTechnical.scriptSurface.mixedContentCount} mixed-content asset reference(s) were found.`,
       impact: "high"
     });
@@ -1819,24 +1862,24 @@ function buildSecurityRecommendations(aggregate, scanData) {
 
   if (aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount > 0) {
     actions.push({
-      title: "Add SRI to external script dependencies",
-      detail: `${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount} external script(s) are missing integrity hashes.`,
+      title: "Verify third-party scripts are authentic",
+      detail: `${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount} external script(s) are missing integrity checks.`,
       impact: "medium"
     });
   }
 
   if (aggregate.securityTechnical.cors.riskyPageCount > 0) {
     actions.push({
-      title: "Tighten permissive CORS responses",
-      detail: `CORS policy issues were detected on ${aggregate.securityTechnical.cors.riskyPageCount} scanned page(s).`,
+      title: "Limit overly open cross-site access",
+      detail: `Cross-site access issues were detected on ${aggregate.securityTechnical.cors.riskyPageCount} scanned page(s).`,
       impact: "medium"
     });
   }
 
   if (aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount > 0) {
     actions.push({
-      title: "Verify anti-CSRF protections on auth flows",
-      detail: `${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount} password-flow page(s) lacked obvious CSRF/token fields.`,
+      title: "Protect sign-in flows from unwanted actions",
+      detail: `${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount} sign-in page(s) lacked visible request-protection signals.`,
       impact: "high"
     });
   }
@@ -1848,8 +1891,8 @@ function buildSecurityRecommendations(aggregate, scanData) {
       aggregate.securityTechnical.cookies.sameSiteRate < 100
     ) {
       actions.push({
-        title: "Harden cookie flags for session safety",
-        detail: `Secure ${aggregate.securityTechnical.cookies.secureRate}%, HttpOnly ${aggregate.securityTechnical.cookies.httpOnlyRate}%, SameSite ${aggregate.securityTechnical.cookies.sameSiteRate}%.`,
+        title: "Tighten session cookie protections",
+        detail: `Cookie safety flags: Secure ${aggregate.securityTechnical.cookies.secureRate}%, HttpOnly ${aggregate.securityTechnical.cookies.httpOnlyRate}%, SameSite ${aggregate.securityTechnical.cookies.sameSiteRate}%.`,
         impact: "medium"
       });
     }
@@ -1857,7 +1900,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
 
   if (scanData.crawl.errors.length > 0) {
     actions.push({
-      title: "Investigate crawl/runtime errors",
+      title: "Follow up on scan interruptions",
       detail: `${scanData.crawl.errors.length} page-level error(s) occurred during the scan.`,
       impact: "low"
     });
@@ -1865,7 +1908,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
 
   if (!actions.length) {
     actions.push({
-      title: "Maintain current security posture",
+      title: "Maintain current protection level",
       detail: "No major hardening gaps were detected in scanned pages.",
       impact: "low"
     });
@@ -1897,18 +1940,18 @@ function computeSecurityPostureScore(aggregate) {
 
 function buildFindings(input, aggregate, siteName, scanData) {
   const clarityDetail = aggregate.counts.headings
-    ? `${siteName} pages expose ${aggregate.counts.headings} headings across ${aggregate.pageCount} scanned page${aggregate.pageCount === 1 ? "" : "s"}, supporting scannable structure.`
-    : `${siteName} shows weak visible heading structure across the scanned pages, so customers may struggle to understand page intent quickly.`;
+    ? `${siteName} presents clear section structure across ${aggregate.pageCount} page${aggregate.pageCount === 1 ? "" : "s"}, helping customers scan quickly.`
+    : `${siteName} lacks obvious section structure on key pages, which can make it harder to understand at a glance.`;
 
   const trustDetail = aggregate.trustLinks.length || aggregate.trustSignals.hasContactDetailsRate > 0
-    ? `Trust cues are visible in parts of the crawl (${aggregate.trustLinks.slice(0, 3).join(", ") || "contact details"}), but consistency can improve across all entry pages.`
-    : "Very few trust cues (privacy, terms, support, contact) were visible across the scanned pages.";
+    ? `Trust signals appear on some pages (${aggregate.trustLinks.slice(0, 3).join(", ") || "support links"}), but they are not consistently visible.`
+    : "Trust signals like privacy, support, or contact details are difficult to find on the scanned pages.";
 
   const conversionDetail = aggregate.ctaLabels.length
-    ? `Primary actions are visible (${aggregate.ctaLabels.slice(0, 4).join(", ")}), with ${aggregate.counts.forms} forms supporting next steps.`
-    : "Clear call-to-action labels were limited across scanned pages, so users may lack a strong next step.";
+    ? `Primary actions are visible (${aggregate.ctaLabels.slice(0, 4).join(", ")}), giving customers a next step on most pages.`
+    : "Clear primary actions are missing on key pages, which can slow customer decisions.";
 
-  const crawlDetail = `Scanned ${scanData.crawl.pagesScanned}/${scanData.crawl.requestedPageLimit} pages up to depth ${scanData.crawl.maxReachedDepth} using ${scanData.crawl.executionMode}${scanData.crawl.modeFallbackUsed ? " (fallback applied)" : ""}.`;
+  const crawlDetail = `Reviewed ${scanData.crawl.pagesScanned} page${scanData.crawl.pagesScanned === 1 ? "" : "s"} (of ${scanData.crawl.requestedPageLimit}) to depth ${scanData.crawl.maxReachedDepth}.`;
 
   return [
     {
@@ -1933,10 +1976,57 @@ function buildFindings(input, aggregate, siteName, scanData) {
     },
     {
       title: "Accessibility comfort",
-      detail: `Average alt coverage is ${aggregate.accessibility.altCoverage}% and form label coverage is ${aggregate.accessibility.formLabelCoverage}%.`,
+      detail: `Images and form fields are described ${aggregate.accessibility.altCoverage}% and ${aggregate.accessibility.formLabelCoverage}% of the time.`,
       severity: aggregate.accessibility.altCoverage >= 75 && aggregate.accessibility.formLabelCoverage >= 75 ? "low" : "medium"
     }
   ];
+}
+
+function buildExecutiveSummary(siteName, aggregate, scores, prioritizedActions) {
+  const clarityScore = scores.find((score) => score.label === "Message clarity")?.value ?? 0;
+  const trustScore = scores.find((score) => score.label === "Trust confidence")?.value ?? 0;
+  const actionScore = scores.find((score) => score.label === "Action readiness")?.value ?? 0;
+  const accessibilityScore = scores.find((score) => score.label === "Accessibility comfort")?.value ?? 0;
+
+  const highlights = [
+    `Clarity score ${clarityScore}/100 with ${aggregate.counts.headings} headings across ${aggregate.pageCount} page${aggregate.pageCount === 1 ? "" : "s"}.`,
+    `Trust visibility ${trustScore}/100 with ${aggregate.trustLinks.length} trust cues and ${aggregate.trustSignals.hasContactDetailsRate}% contact coverage.`,
+    `Action readiness ${actionScore}/100 with ${aggregate.ctaLabels.length} action labels and ${aggregate.counts.forms} forms.`
+  ];
+  const risks = [];
+  if (aggregate.ctaLabels.length === 0) risks.push("Primary next steps are not clear on key pages.");
+  if (aggregate.trustLinks.length < 2) risks.push("Trust details are not consistently visible near decisions.");
+  if (aggregate.accessibility.altCoverage < 75 || aggregate.accessibility.formLabelCoverage < 75) {
+    risks.push("Images or form fields are missing descriptions in several areas.");
+  }
+  if (!risks.length) risks.push("No major customer-facing risks were detected in this pass.");
+
+  const opportunities = prioritizedActions.slice(0, 3).map((action) => action.title);
+
+  return {
+    headline: `${siteName} has a clear foundation with focused opportunities to lift trust and conversion confidence.`,
+    highlights,
+    risks,
+    opportunities
+  };
+}
+
+function buildOpportunityMap(prioritizedActions) {
+  const quickWins = prioritizedActions
+    .filter((action) => action.effort === "low")
+    .map((action) => action.title);
+  const mediumTerm = prioritizedActions
+    .filter((action) => action.effort === "medium")
+    .map((action) => action.title);
+  const bigBets = prioritizedActions
+    .filter((action) => action.effort === "high")
+    .map((action) => action.title);
+
+  return {
+    quickWins: quickWins.length ? quickWins : prioritizedActions.slice(0, 2).map((action) => action.title),
+    mediumTerm: mediumTerm.length ? mediumTerm : prioritizedActions.slice(2, 4).map((action) => action.title),
+    bigBets: bigBets.length ? bigBets : prioritizedActions.slice(4, 5).map((action) => action.title)
+  };
 }
 
 function deriveSiteName(url) {
@@ -2000,38 +2090,41 @@ function buildReport(input, scanData) {
       : [])
   ];
 
+  const scores = [
+    {
+      label: "Message clarity",
+      value: clarityScore,
+      trend: `${aggregate.counts.headings} headings across ${aggregate.pageCount} pages`
+    },
+    {
+      label: "Trust confidence",
+      value: trustScore,
+      trend: `${aggregate.trustLinks.length} trust cues, contact coverage ${aggregate.trustSignals.hasContactDetailsRate}%`
+    },
+    {
+      label: "Action readiness",
+      value: actionScore,
+      trend: `${aggregate.ctaLabels.length} CTA labels, ${aggregate.counts.forms} forms`
+    },
+    {
+      label: "Accessibility comfort",
+      value: accessibilityScore,
+      trend: `Image labels ${aggregate.accessibility.altCoverage}%, form labels ${aggregate.accessibility.formLabelCoverage}%`
+    },
+    {
+      label: "Security posture",
+      value: securityPostureScore,
+      trend: `${aggregate.securityTechnical.headers.missing.length} protection gaps flagged`
+    }
+  ];
+
   return {
+    reportVersion: "2026-03-executive-v1",
     siteName,
     scannedAt: new Date().toISOString(),
     scope: sizeDetails.scope,
-    summary: `This review scanned ${scanData.crawl.pagesScanned} page${scanData.crawl.pagesScanned === 1 ? "" : "s"} from ${new URL(input.url).origin} with a depth budget of ${scanData.crawl.maxDepth}. The report is split into UI/Styling intelligence and Security/Technical hardening evidence.`,
-    scores: [
-      {
-        label: "Message clarity",
-        value: clarityScore,
-        trend: `${aggregate.counts.headings} headings across ${aggregate.pageCount} pages`
-      },
-      {
-        label: "Trust confidence",
-        value: trustScore,
-        trend: `${aggregate.trustLinks.length} trust cues, contact coverage ${aggregate.trustSignals.hasContactDetailsRate}%`
-      },
-      {
-        label: "Action readiness",
-        value: actionScore,
-        trend: `${aggregate.ctaLabels.length} CTA labels, ${aggregate.counts.forms} forms`
-      },
-      {
-        label: "Accessibility comfort",
-        value: accessibilityScore,
-        trend: `Alt text ${aggregate.accessibility.altCoverage}%, form labels ${aggregate.accessibility.formLabelCoverage}%`
-      },
-      {
-        label: "Security posture",
-        value: securityPostureScore,
-        trend: `${aggregate.securityTechnical.headers.missing.length} missing header category${aggregate.securityTechnical.headers.missing.length === 1 ? "" : "ies"}`
-      }
-    ],
+    summary: `This review covered ${scanData.crawl.pagesScanned} page${scanData.crawl.pagesScanned === 1 ? "" : "s"} from ${new URL(input.url).origin} with a depth budget of ${scanData.crawl.maxDepth}. It focuses on customer clarity, trust, and conversion confidence, supported by security checks.`,
+    scores,
     tokenGroups: [
       {
         label: "Customer actions detected",
@@ -2067,6 +2160,8 @@ function buildReport(input, scanData) {
       ? aggregate.components
       : [...focusDetails.components, "Customer trust cues", "Primary action blocks"],
     interactions: buildInteractions(aggregate),
+    executiveSummary: buildExecutiveSummary(siteName, aggregate, scores, prioritizedActions),
+    opportunityMap: buildOpportunityMap(prioritizedActions),
     uiStyle: {
       summary: `UI analysis covers visual tokens, typography, content clarity, and interaction intent across ${aggregate.pageCount} scanned pages.`,
       styleTokens: {
@@ -2155,13 +2250,27 @@ function buildReport(input, scanData) {
         ctaLabels: aggregate.ctaLabels,
         trustSignals: aggregate.trustLinks,
         highlightWords: aggregate.highlightTerms,
+        trustCoverage: {
+          hasContactDetailsRate: aggregate.trustSignals.hasContactDetailsRate,
+          hasTestimonialsRate: aggregate.trustSignals.hasTestimonialsRate,
+          hasFaqRate: aggregate.trustSignals.hasFaqRate,
+          hasPolicyPagesRate: aggregate.trustSignals.hasPolicyPagesRate
+        },
         readability: {
           paragraphCount: aggregate.readability.paragraphCount,
-          avgParagraphWords: aggregate.readability.avgParagraphWords
+          avgParagraphWords: aggregate.readability.avgParagraphWords,
+          longParagraphCount: aggregate.readability.longParagraphCount,
+          avgWordsPerSentence: aggregate.readability.avgWordsPerSentence
         },
         accessibility: {
           altCoverage: aggregate.accessibility.altCoverage,
           formLabelCoverage: aggregate.accessibility.formLabelCoverage
+        },
+        structure: {
+          headingJumpCount: aggregate.structure.headingJumpCount
+        },
+        forms: {
+          complexForms: aggregate.structure.complexForms
         }
       }
     }
@@ -2180,6 +2289,7 @@ module.exports = {
     assessCorsPolicy,
     assessCachePolicy,
     assessAuthSurface,
+    getSizeDetails,
     buildImplementationSnippets,
     computeSecurityPostureScore
   }
