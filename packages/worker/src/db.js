@@ -2,14 +2,35 @@ const { createClient } = require("@supabase/supabase-js");
 
 let client = null;
 
+function readFirstNonEmptyEnv(keys) {
+  for (const key of keys) {
+    const rawValue = process.env[key];
+    if (typeof rawValue !== "string") continue;
+    const value = rawValue.trim();
+    if (!value || value.toLowerCase() === "null" || value.toLowerCase() === "undefined") continue;
+    return value;
+  }
+  return "";
+}
+
 function getSupabaseAdminClient() {
   if (client) return client;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = readFirstNonEmptyEnv([
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "VITE_SUPABASE_URL"
+  ]);
+  const key = readFirstNonEmptyEnv([
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_KEY",
+    "SUPABASE_SECRET_KEY"
+  ]);
 
   if (!url || !key) {
-    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.");
+    throw new Error(
+      "Missing Supabase service credentials. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)."
+    );
   }
 
   client = createClient(url, key, {

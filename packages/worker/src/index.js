@@ -297,6 +297,17 @@ async function main() {
       };
     }
 
+    const payload = {
+      telemetry: workerTelemetry.snapshot({
+        queue
+      }),
+      totals: {
+        processed: stats.processed,
+        failed: stats.failed,
+        retried: stats.retried
+      }
+    };
+
     console.log(
       JSON.stringify({
         level: "info",

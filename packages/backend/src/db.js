@@ -2,15 +2,39 @@ const { createClient } = require("@supabase/supabase-js");
 let publicClient = null;
 let adminClient = null;
 
+function readFirstNonEmptyEnv(keys) {
+  for (const key of keys) {
+    const rawValue = process.env[key];
+    if (typeof rawValue !== "string") continue;
+    const value = rawValue.trim();
+    if (!value || value.toLowerCase() === "null" || value.toLowerCase() === "undefined") continue;
+    return value;
+  }
+  return "";
+}
+
 function readSupabaseUrl() {
-  return process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+  return readFirstNonEmptyEnv([
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "VITE_SUPABASE_URL"
+  ]);
 }
 
 function readSupabasePublishableKey() {
-  return process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "";
+  return readFirstNonEmptyEnv([
+    "SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_ANON_KEY",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "VITE_SUPABASE_ANON_KEY"
+  ]);
 }
 function readSupabaseServiceRoleKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  return readFirstNonEmptyEnv([
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_KEY",
+    "SUPABASE_SECRET_KEY"
+  ]);
 }
 
 function ensurePublicConfig() {
