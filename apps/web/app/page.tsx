@@ -1,258 +1,227 @@
 import Link from "next/link";
-import { Activity, ArrowRight, Blocks, Compass, ShieldCheck } from "lucide-react";
-import { BlurText } from "@/components/reactbits/blur-text";
-import { ClickSpark } from "@/components/reactbits/click-spark";
-import { StarBorder } from "@/components/reactbits/star-border";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { ShellCard } from "@/components/ui/shell-card";
+import { ArrowRight, Link2, BrainCircuit, Zap } from "lucide-react";
+import { SyntelliaLogo } from "@/components/ui/syntellia-logo";
 
 const features = [
   {
-    title: "Design token extraction",
-    body: "Harvest colors, typography, spacing, radii, border behavior, and elevation into a stable output contract.",
-    icon: Blocks,
-    accent: "text-[#7c6aff]",
-    iconBg: "border-[#7c6aff]/15 bg-[#7c6aff]/8",
+    icon: Link2,
+    title: "CONNECT PROTOCOL",
+    body: "Inject our secure snippet or designate a target URL. Syntellia's crawler autonomously maps your DOM topology.",
+    accent: "#00e5ff",
+    iconBg: "border-[#00e5ff]/20 bg-[#00e5ff]/8",
   },
   {
-    title: "UX heuristic intelligence",
-    body: "Translate layouts, CTA load, form complexity, nav depth, and interaction patterns into structured observations.",
-    icon: Compass,
-    accent: "text-[#2dd4bf]",
-    iconBg: "border-[#2dd4bf]/15 bg-[#2dd4bf]/8",
+    icon: BrainCircuit,
+    title: "NEURAL ANALYSIS",
+    body: "Our proprietary models cross-reference element structures against stringent WCAG 2.2 and ADA compliance matrices.",
+    accent: "#a78bfa",
+    iconBg: "border-[#a78bfa]/20 bg-[#a78bfa]/8",
   },
   {
-    title: "Controlled crawl engine",
-    body: "Scope scans by domain, depth, page count, or authenticated session to keep audits precise and reproducible.",
-    icon: ShieldCheck,
-    accent: "text-[#818cf8]",
-    iconBg: "border-[#818cf8]/15 bg-[#818cf8]/8",
-  }
+    icon: Zap,
+    title: "EXECUTE FIXES",
+    body: "Extract AI-generated code patches. Integrate surgical optimizations directly into your repository with zero friction.",
+    accent: "#34d399",
+    iconBg: "border-[#34d399]/20 bg-[#34d399]/8",
+  },
 ];
 
-const workflow = [
-  "Paste the page you want reviewed.",
-  "Choose how broad the review should be and what you care about most.",
-  "Syntellia turns that into a clear style and UX summary you can share with your team."
+const statusItems = [
+  { label: "WCAG 2.1 AA", status: "PASS", color: "#34d399" },
+  { label: "Color Contrast", status: "PASS", color: "#34d399" },
+  { label: "ARIA Labels", status: "SCAN", color: "#60a5fa" },
 ];
 
 export default function HomePage() {
   return (
-    <main id="main-content" className="relative overflow-hidden px-6 pb-28 pt-7 text-white md:px-10 xl:px-14">
-      <div className="mx-auto max-w-7xl space-y-28">
+    <div className="min-h-screen bg-[#070710] text-white">
 
-        {/* ── Header ── */}
-        <header className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.03] px-5 py-3 backdrop-blur-xl">
+      {/* ── Nav ── */}
+      <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#070710]/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5 md:px-10">
           <div className="flex items-center gap-2.5">
-            <div className="h-5 w-5 rounded-md bg-gradient-to-br from-[#7c6aff] to-[#818cf8] opacity-90" />
-            <span className="text-[11px] font-medium uppercase tracking-[0.38em] text-white/50">Syntellia</span>
+            <SyntelliaLogo size={26} />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.4em] text-white/80">Syntellia</span>
           </div>
-          <nav className="hidden items-center gap-7 text-[13px] font-medium text-white/50 md:flex">
-            <a href="#features" className="transition hover:text-white/80">Capabilities</a>
-            <a href="#workflow" className="transition hover:text-white/80">Workflow</a>
-            <a href="#preview" className="transition hover:text-white/80">Preview</a>
+          <nav className="hidden items-center gap-8 text-[11px] font-medium uppercase tracking-[0.22em] text-white/42 md:flex">
+            <a href="#features" className="transition hover:text-white/75">Features</a>
+            <a href="#workflow" className="transition hover:text-white/75">How It Works</a>
+            <a href="#preview" className="transition hover:text-white/75">Pricing</a>
           </nav>
-          <Link
-            href="/app/scan/new"
-            className="rounded-xl border border-white/[0.08] bg-white/[0.05] px-4 py-2 text-[13px] font-medium text-white/75 transition hover:bg-white/[0.09] hover:text-white"
-          >
-            Start a scan
-          </Link>
-        </header>
+          <div className="flex items-center gap-3">
+            <Link href="/auth/login" className="px-4 py-2 text-[12px] font-medium uppercase tracking-[0.18em] text-white/55 transition hover:text-white">
+              Log In
+            </Link>
+            <Link
+              href="/app/scan/new"
+              className="rounded-lg border border-[#00e5ff]/40 bg-[#00e5ff]/10 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#00e5ff] transition hover:bg-[#00e5ff]/18"
+            >
+              Start Scan
+            </Link>
+          </div>
+        </div>
+      </header>
 
+      <main>
         {/* ── Hero ── */}
-        <section className="grid items-center gap-10 lg:grid-cols-[1.15fr,0.85fr] lg:gap-14">
-          <div className="space-y-9">
-            {/* Eyebrow badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#7c6aff]/20 bg-[#7c6aff]/8 px-3.5 py-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#7c6aff]" />
-              <span className="text-[11px] font-medium uppercase tracking-[0.3em] text-[#c4b8ff]">
-                UI intelligence for live products
-              </span>
+        <section className="mx-auto grid max-w-7xl items-center gap-10 px-6 pb-20 pt-16 md:px-10 lg:grid-cols-[1.1fr,0.9fr] lg:gap-14">
+          <div className="space-y-8">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#34d399]/25 bg-[#34d399]/8 px-3.5 py-1.5">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#34d399]" />
+              <span className="text-[10px] font-medium uppercase tracking-[0.32em] text-[#34d399]">AI Engine Online</span>
             </div>
 
-            <div className="space-y-5">
-              <BlurText
-                text="Scan any interface. Decode the system behind it."
-                className="max-w-4xl font-display text-[2.6rem] font-semibold leading-[1.08] tracking-[-0.04em] text-white md:text-6xl"
-                animateBy="words"
-                direction="top"
-              />
-              <p className="max-w-xl text-[1.0625rem] leading-[1.85] text-white/55 md:text-lg">
-                Syntellia turns a page URL into structured UI and UX data — exposing the visual language,
-                interaction rhythm, and reusable patterns that shape the experience.
+            <div>
+              <h1 className="font-display text-[3.2rem] font-bold leading-[1.05] tracking-[-0.04em] md:text-[4.2rem]">
+                Perfection<br />in<br />
+                <span className="bg-gradient-to-r from-[#00e5ff] via-[#60a5fa] to-[#a78bfa] bg-clip-text text-transparent">Every<br />Pixel.</span>
+              </h1>
+              <p className="mt-6 max-w-xl text-[0.975rem] leading-[1.88] text-white/50">
+                Ultra-premium accessibility and quality scanning. Detect anomalies, enforce WCAG standards, and deploy AI-driven fixes with surgical precision.
               </p>
             </div>
 
-            {/* CTAs */}
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <ClickSpark sparkColor="#7c6aff" sparkCount={10} sparkRadius={52}>
-                <Link
-                  href="/app/scan/new"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-[13px] font-semibold text-[#060611] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset] transition hover:bg-white/92 hover:translate-y-[-1px] active:translate-y-0"
-                >
-                  Launch analyzer
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </ClickSpark>
+            <div className="flex flex-wrap gap-3">
               <Link
-                href="/app/dashboard"
-                className="inline-flex items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-6 py-3 text-[13px] font-medium text-white/65 transition hover:bg-white/[0.08] hover:text-white/85"
+                href="/app/scan/new"
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#00e5ff] to-[#60a5fa] px-6 py-3 text-[12px] font-bold uppercase tracking-[0.2em] text-[#070710] transition hover:opacity-90"
               >
-                See dashboard shell
+                Initialize Scan
+                <ArrowRight className="h-4 w-4" />
               </Link>
-            </div>
-
-            {/* Trust micro-stats */}
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                ["Real scan processing", "Scans run through a live backend and worker pipeline."],
-                ["Account-scoped data", "Scan records are isolated per authenticated user."],
-                ["Actionable reports", "Findings are rendered in a structured, readable format."]
-              ].map(([title, detail]) => (
-                <div
-                  key={title}
-                  className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-4"
-                >
-                  <div className="text-[13px] font-semibold text-white/85">{title}</div>
-                  <div className="mt-1.5 text-[12px] leading-relaxed text-white/45">{detail}</div>
-                </div>
-              ))}
+              <Link
+                href="/app/scan/history"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/12 bg-white/5 px-6 py-3 text-[12px] font-medium uppercase tracking-[0.2em] text-white/65 transition hover:bg-white/9 hover:text-white/85"
+              >
+                View Terminal
+              </Link>
             </div>
           </div>
 
-          {/* Hero preview card */}
-          <ShellCard className="panel-elevated relative overflow-hidden p-6">
-            <div className="absolute inset-0 bg-mesh opacity-60" />
-            <div className="relative space-y-4">
-              {/* Profile header */}
-              <div className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-[#08081c]/80 px-5 py-4">
-                <div>
-                  <div className="text-[10px] font-medium uppercase tracking-[0.28em] text-white/35">Live profile</div>
-                  <div className="mt-1.5 text-[1.0625rem] font-semibold text-white">UI maturity scan</div>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-full border border-[#2dd4bf]/20 bg-[#2dd4bf]/8 px-3 py-1">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2dd4bf]" />
-                  <span className="text-[11px] font-medium text-[#99ffe8]">active</span>
-                </div>
+          {/* Terminal widget */}
+          <div className="relative rounded-[22px] border border-[#a78bfa]/30 bg-[#0c0c1e] p-0 shadow-[0_0_60px_rgba(124,58,255,0.18)]">
+            {/* Terminal header */}
+            <div className="flex items-center justify-between rounded-t-[22px] border-b border-white/[0.06] bg-white/[0.03] px-5 py-3.5">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#34d399]" />
+                <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/45">Live Telemetry</span>
               </div>
-
-              {/* Pipeline */}
-              <StarBorder color="#818cf8" speed="5s">
-                <div className="rounded-xl bg-[#05050f]/80 p-5">
-                  <div className="text-[10px] font-medium uppercase tracking-[0.24em] text-white/35">Report pipeline</div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    {[
-                      ["Queued", "Scan request saved and scheduled."],
-                      ["Running", "Worker fetches and analyzes the target."],
-                      ["Completed", "Findings and data are stored."],
-                      ["Failed", "Clear error details for troubleshooting."]
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.04] p-3.5">
-                        <div className="text-[11px] font-medium text-white/40">{label}</div>
-                        <div className="mt-1.5 text-[12px] leading-relaxed text-white/65">{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </StarBorder>
-
-              {/* Footnote */}
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3.5 text-[12px] leading-relaxed text-white/50">
-                Reports are generated from live scan execution states — not static demo payloads.
-              </div>
+              <span className="rounded border border-[#34d399]/30 bg-[#34d399]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.24em] text-[#34d399]">SYS.OK</span>
             </div>
-          </ShellCard>
+
+            <div className="space-y-5 p-5">
+              {/* URL input */}
+              <div>
+                <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/35">Target Domain</p>
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <Link2 className="h-4 w-4 shrink-0 text-white/30" />
+                  <span className="text-[13px] text-white/30">https://...</span>
+                </div>
+              </div>
+
+              {/* Status checks */}
+              <div className="space-y-2">
+                {statusItems.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2.5">
+                    <span className="text-[12px] text-white/55">{item.label}</span>
+                    <span
+                      className="rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em]"
+                      style={{ color: item.color, borderColor: `${item.color}40`, backgroundColor: `${item.color}12` }}
+                    >
+                      [ {item.status} ]
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Execute button */}
+              <Link
+                href="/app/scan/new"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1a1a3e] to-[#1a1a3e] border border-white/10 py-3.5 text-[12px] font-bold uppercase tracking-[0.28em] text-white/72 transition hover:border-[#00e5ff]/30 hover:text-[#00e5ff]"
+              >
+                <span className="text-[#00e5ff]">▶</span>
+                Execute
+              </Link>
+            </div>
+          </div>
         </section>
 
-        {/* ── Features ── */}
-        <section id="features" className="space-y-12">
-          <SectionHeading
-            eyebrow="Capabilities"
-            title="Structured interface intelligence, not vague screenshots."
-            body="The product returns design system evidence and UX interpretation in the same surface, so teams can move from inspiration to implementation without manual teardown work."
-          />
+        {/* ── Deployed by ── */}
+        <div className="border-y border-white/[0.05] bg-white/[0.01] py-8">
+          <p className="text-center text-[10px] font-medium uppercase tracking-[0.38em] text-white/25">
+            Deployed by Industry Leaders
+          </p>
+          <div className="mx-auto mt-6 flex max-w-3xl items-center justify-center gap-8 px-6">
+            {["Acme Corp", "TechNova", "Vertex AI", "CloudStack"].map((name) => (
+              <div key={name} className="h-5 rounded bg-white/10 px-6" style={{ minWidth: 80 }}>
+                <span className="sr-only">{name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Architectural Precision ── */}
+        <section id="features" className="mx-auto max-w-7xl space-y-14 px-6 py-24 md:px-10">
+          <div className="text-center">
+            <h2 className="font-display text-[2.6rem] font-bold leading-[1.1] tracking-[-0.03em] md:text-5xl">
+              Architectural{" "}
+              <span className="bg-gradient-to-r from-[#00e5ff] to-[#a78bfa] bg-clip-text text-transparent">Precision</span>
+            </h2>
+            <p className="mx-auto mt-5 max-w-2xl text-[0.975rem] leading-[1.85] text-white/45">
+              Syntellia maps your digital infrastructure, isolating accessibility violations with microscopic accuracy before deploying automated solutions.
+            </p>
+          </div>
+
           <div className="grid gap-5 lg:grid-cols-3">
-            {features.map((feature) => {
-              const Icon = feature.icon;
+            {features.map((f) => {
+              const Icon = f.icon;
               return (
-                <ShellCard key={feature.title} className="group p-7 transition hover:border-white/10">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl border ${feature.iconBg}`}>
-                    <Icon className={`h-5 w-5 ${feature.accent}`} />
+                <div key={f.title} className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] p-7 transition hover:border-white/12 hover:bg-white/[0.04]">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl border ${f.iconBg}`}>
+                    <Icon className="h-5 w-5" style={{ color: f.accent }} />
                   </div>
-                  <h3 className="mt-7 text-[1.1rem] font-semibold tracking-tight text-white">{feature.title}</h3>
-                  <p className="mt-3 text-[13.5px] leading-[1.8] text-white/55">{feature.body}</p>
-                </ShellCard>
+                  <h3 className="mt-6 text-[13px] font-bold uppercase tracking-[0.22em]" style={{ color: f.accent }}>
+                    {f.title}
+                  </h3>
+                  <p className="mt-3 text-[13.5px] leading-[1.82] text-white/50">{f.body}</p>
+                </div>
               );
             })}
           </div>
         </section>
 
-        {/* ── Workflow ── */}
-        <section id="workflow" className="grid gap-10 lg:grid-cols-[0.75fr,1.25fr] lg:items-start">
-          <SectionHeading
-            eyebrow="Workflow"
-            title="Built like a real audit engine from the first step."
-            body="Syntellia is implemented with a crawl worker, saved scans, and structured reporting in mind — so the UI already reflects the eventual product shape."
-          />
-          <div className="space-y-3">
-            {workflow.map((step, index) => (
-              <div key={step} className="panel-soft rounded-2xl p-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-[12px] font-semibold tracking-widest text-white/40">
-                    {String(index + 1).padStart(2, "0")}
-                  </div>
-                  <p className="pt-1.5 text-[13.5px] leading-[1.85] text-white/60">{step}</p>
-                </div>
+        {/* ── How it works ── */}
+        <section id="workflow" className="mx-auto max-w-4xl space-y-10 px-6 py-16 text-center md:px-10">
+          <h2 className="font-display text-3xl font-bold tracking-tight">How It Works</h2>
+          <div className="grid gap-5 md:grid-cols-3">
+            {[
+              ["01", "Paste the URL", "Enter the page you want reviewed and configure your scan depth."],
+              ["02", "AI Analysis", "Syntellia's engine fetches, renders, and scores every corner of your UI."],
+              ["03", "Receive Report", "Get a plain-language report with prioritised fixes and code snippets."],
+            ].map(([num, title, body]) => (
+              <div key={num} className="rounded-[20px] border border-white/[0.07] bg-white/[0.025] p-6 text-left">
+                <div className="font-mono text-[11px] font-semibold tracking-[0.3em] text-[#00e5ff]/60">{num}</div>
+                <div className="mt-3 text-[14px] font-semibold text-white">{title}</div>
+                <p className="mt-2 text-[13px] leading-relaxed text-white/45">{body}</p>
               </div>
             ))}
           </div>
         </section>
+      </main>
 
-        {/* ── Preview ── */}
-        <section id="preview" className="grid gap-5 lg:grid-cols-[1fr,0.88fr]">
-          <ShellCard className="p-8">
-            <p className="label-accent text-[10px] font-medium uppercase tracking-[0.3em] text-white/40">Report preview</p>
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {[
-                ["Audit summary", "Scores, narrative findings, page crawl metadata."],
-                ["Token atlas", "Dominant colors, type roles, spacing and radius patterns."],
-                ["UI inventory", "Cards, navs, forms, CTAs, layout sections, media patterns."],
-                ["UX signals", "Readability risks, hierarchy issues, interaction density."]
-              ].map(([title, body]) => (
-                <div key={title} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-5">
-                  <div className="flex items-center gap-2.5 text-[13.5px] font-semibold text-white/85">
-                    <Activity className="h-4 w-4 text-[#d4a853] shrink-0" />
-                    {title}
-                  </div>
-                  <p className="mt-2.5 text-[12.5px] leading-[1.75] text-white/50">{body}</p>
-                </div>
-              ))}
-            </div>
-          </ShellCard>
-
-          <ShellCard className="flex flex-col justify-between gap-10 p-8">
-            <div>
-              <p className="label-accent text-[10px] font-medium uppercase tracking-[0.3em] text-white/40">Positioning</p>
-              <h3 className="mt-5 text-[1.6rem] font-semibold leading-[1.25] tracking-tight text-white">
-                A mature UI for a product that studies mature UIs.
-              </h3>
-              <p className="mt-4 text-[13.5px] leading-[1.85] text-white/55">
-                The design avoids generic dashboard tropes and leans into rich color depth, luminous panels,
-                and measured motion so the interface feels intentional instead of templated.
-              </p>
-            </div>
-            <Link
-              href="/app/scan/new"
-              className="inline-flex w-fit items-center gap-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/8 px-5 py-3 text-[13px] font-medium text-[#f0d090] transition hover:bg-[#d4a853]/14"
-            >
-              Configure the first scan
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </ShellCard>
-        </section>
-
-      </div>
-    </main>
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/[0.05] py-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 md:px-10">
+          <div className="flex items-center gap-2.5">
+            <SyntelliaLogo size={20} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.38em] text-white/40">Syntellia</span>
+          </div>
+          <p className="text-[10px] uppercase tracking-[0.28em] text-white/25">
+            © 2024 Syntellia Systems. Secure.
+          </p>
+        </div>
+      </footer>
+    </div>
   );
 }

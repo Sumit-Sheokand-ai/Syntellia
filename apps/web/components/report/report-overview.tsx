@@ -9,7 +9,6 @@ import type {
   UiStyleReport
 } from "@/lib/report-schema";
 import { trackAnalyticsEvent } from "@/lib/scan-api-client";
-import { ImplementationCodePanel } from "@/components/ui/implementation-code-panel";
 import { ShellCard } from "@/components/ui/shell-card";
 
 type ReportOverviewProps = {
@@ -286,23 +285,54 @@ function sectionChip(value: string) {
   );
 }
 
+function TokenChipButton({ value, swatch }: { value: string; swatch?: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* ignore */ }
+  };
+  return (
+    <div key={value} className="flex flex-col gap-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-2 text-sm text-white/75 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+      >
+        {swatch ? (
+          <span
+            className="h-4 w-4 shrink-0 rounded-full border border-white/15"
+            style={{ backgroundColor: swatch }}
+            aria-hidden
+          />
+        ) : null}
+        {value}
+        <span className="ml-0.5 font-mono text-[10px] text-white/35">{open ? "▲" : "▼"}</span>
+      </button>
+      {open ? (
+        <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <pre className="text-[11px] leading-5 text-[#7cf5d4]/80"><code>{value}</code></pre>
+            <button
+              type="button"
+              onClick={copy}
+              className="shrink-0 rounded-lg border border-white/10 bg-white/6 px-2.5 py-1 font-mono text-[10px] text-white/50 transition hover:bg-white/12 hover:text-white/80"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function colorTokenChip(value: string) {
   const swatch = getColorSwatchValue(value);
-  return (
-    <span
-      key={value}
-      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-sm text-white/75"
-    >
-      {swatch ? (
-        <span
-          className="h-4 w-4 rounded-full border border-white/15"
-          style={{ backgroundColor: swatch }}
-          aria-hidden
-        />
-      ) : null}
-      {value}
-    </span>
-  );
+  return <TokenChipButton key={value} value={value} swatch={swatch} />;
 }
 
 export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
@@ -350,17 +380,6 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
     pagesWithComplexForms: 0,
     trustWeakPages: 0
   };
-  const implementationSnippets = useMemo(
-    () => uiStyle.implementationSnippets?.length
-      ? uiStyle.implementationSnippets
-      : buildImplementationSnippetsFromTokens(
-        uiStyle.styleTokens.colors,
-        uiStyle.styleTokens.fonts,
-        uiStyle.styleTokens.components
-      ),
-    [uiStyle]
-  );
-
   const uiScores = report.scores.filter((score) => score.label !== "How safe your site is");
   const securityScore = report.scores.find((score) => score.label === "How safe your site is");
   const uiSections = [
@@ -373,21 +392,6 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
     { id: "report-section-improvements", label: "Improvements" }
   ];
 
-  const trackCodePanelToggle = (snippetId: string, expanded: boolean) => {
-    void trackAnalyticsEvent("report_code_panel_toggled", {
-      snippetId,
-      expanded,
-      siteName: report.siteName
-    });
-  };
-
-  const trackCodeCopy = (snippetId: string, success: boolean) => {
-    void trackAnalyticsEvent("report_code_copied", {
-      snippetId,
-      success,
-      siteName: report.siteName
-    });
-  };
   const tabOrder: Array<"ui" | "security" | "bugs"> = ["ui", "security", "bugs"];
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     const currentIndex = tabOrder.indexOf(activeTab);
@@ -860,19 +864,6 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   <p className="text-sm uppercase tracking-[0.24em] text-white/45">Components</p>
                   <div className="mt-4 flex flex-wrap gap-3">
                     {(uiStyle.styleTokens.components.length ? uiStyle.styleTokens.components : ["No strong component patterns detected"]).map(sectionChip)}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-white/45">Code ready to copy and paste</p>
-                  <div className="mt-4 space-y-3">
-                    {implementationSnippets.map((snippet) => (
-                      <ImplementationCodePanel
-                        key={snippet.id}
-                        snippet={snippet}
-                        onToggle={(expanded) => trackCodePanelToggle(snippet.id, expanded)}
-                        onCopy={(success) => trackCodeCopy(snippet.id, success)}
-                      />
-                    ))}
                   </div>
                 </div>
               </div>
