@@ -6,7 +6,7 @@ const {
   writeScanResult,
   writeScanFailure
 } = require("./db");
-const { extractScanData, buildReport, ScanProcessingError } = require("./processor");
+const { extractScanData, buildReport, enrichWithAINarrative, ScanProcessingError } = require("./processor");
 const { createTelemetryExporter } = require("./telemetry-exporter");
 const { createWorkerTelemetry } = require("./telemetry");
 
@@ -140,7 +140,7 @@ async function poll() {
       loginMode: scan.login_mode,
       focusArea: scan.focus_area
     });
-    const report = buildReport(
+    const baseReport = buildReport(
       {
         url: scan.url,
         scanSize: scan.scan_size,
@@ -149,6 +149,8 @@ async function poll() {
       },
       scanData
     );
+    const aiNarrative = await enrichWithAINarrative(baseReport);
+    const report = aiNarrative ? { ...baseReport, aiNarrative } : baseReport;
 
     await writeScanResult(scan.id, scan.user_id, report);
     stats.processed += 1;

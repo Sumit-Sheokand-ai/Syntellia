@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { ReportOverview } from "@/components/report/report-overview";
@@ -75,6 +76,19 @@ function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
   );
 }
 
+function ReScanLink({ url, projectName }: { url: string; projectName?: string }) {
+  const params = new URLSearchParams({ url });
+  if (projectName) params.set("project", projectName);
+  return (
+    <Link
+      href={`/app/scan/new?${params.toString()}`}
+      className="inline-flex items-center rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/[0.09] hover:text-white"
+    >
+      Re-scan this URL
+    </Link>
+  );
+}
+
 function FailureView({ scan }: { scan: ScanRecord }) {
   return (
     <ShellCard className="p-8">
@@ -85,6 +99,9 @@ function FailureView({ scan }: { scan: ScanRecord }) {
       </p>
       <div className="mt-8 rounded-[24px] border border-[#ffb39f]/20 bg-[#ffb39f]/8 p-5 text-sm leading-7 text-[#ffd3c8]">
         {scan.error ?? "The page could not be fetched."}
+      </div>
+      <div className="mt-6">
+        <ReScanLink url={scan.url} projectName={scan.projectName} />
       </div>
     </ShellCard>
   );
@@ -242,6 +259,7 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <ReScanLink url={scan.url} projectName={scan.projectName} />
             <button
               type="button"
               className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"

@@ -15,6 +15,13 @@ const PORT = process.env.PORT || 3001;
 // Allow requests from the GitHub Pages frontend, or wildcard in dev.
 // Set ALLOWED_ORIGIN=https://your-org.github.io on Render.
 const rawOrigin = process.env.ALLOWED_ORIGIN ?? "*";
+if (rawOrigin === "*" && process.env.NODE_ENV === "production") {
+  console.error(
+    "FATAL: Wildcard CORS (ALLOWED_ORIGIN=*) is not permitted in production. " +
+    "Set ALLOWED_ORIGIN to the specific frontend origin(s) before starting."
+  );
+  process.exit(1);
+}
 const allowedOrigins = rawOrigin === "*" ? "*" : rawOrigin.split(",").map((s) => s.trim());
 const API_TELEMETRY_HEARTBEAT_MS = Number.parseInt(process.env.API_TELEMETRY_HEARTBEAT_MS ?? "60000", 10) || 60_000;
 const apiTelemetry = createApiTelemetry({

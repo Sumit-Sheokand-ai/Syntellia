@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { ShellCard } from "@/components/ui/shell-card";
@@ -27,12 +27,13 @@ const highlights = [
 
 export default function NewScanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t } = useI18n();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
-    url: "",
-    projectName: "General"
+    url: searchParams?.get("url") ?? "",
+    projectName: searchParams?.get("project") ?? "General"
   });
 
   const updateForm = (field: keyof typeof form, value: string) => {

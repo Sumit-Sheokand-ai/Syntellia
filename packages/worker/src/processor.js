@@ -2,6 +2,33 @@ const cheerio = require("cheerio");
 const dns = require("node:dns/promises");
 const net = require("node:net");
 
+// ── Groq SDK — optional dependency, loaded lazily ──
+let _groqSdkModule;
+let _groqSdkLoaded = false;
+function getGroqSdk() {
+  if (_groqSdkLoaded) return _groqSdkModule;
+  _groqSdkLoaded = true;
+  try {
+    // eslint-disable-next-line global-require
+    _groqSdkModule = require("groq-sdk");
+  } catch {
+    _groqSdkModule = null;
+  }
+  return _groqSdkModule;
+}
+
+// In-memory token bucket for Groq rate limiting (single-process worker)
+const _groqRateLimiter = {
+  calls: [],
+  isAllowed(maxPerMinute) {
+    const now = Date.now();
+    this.calls = this.calls.filter((t) => now - t < 60_000);
+    if (this.calls.length >= maxPerMinute) return false;
+    this.calls.push(now);
+    return true;
+  }
+};
+
 const COLOR_PATTERN = /#(?:[0-9a-f]{3,8})\b|rgba?\([^)]+\)|hsla?\([^)]+\)/gi;
 const FONT_FAMILY_PATTERN = /font-family\s*:\s*([^;}{]+)/gi;
 const CTA_PATTERN = /\b(sign up|get started|start free|book|buy|try|contact|request|demo|subscribe|checkout|apply|join|schedule)\b/i;
@@ -67,6 +94,8 @@ function applyCap(value, cap) {
   if (!Number.isFinite(cap) || cap <= 0) return value;
   return Math.min(value, cap);
 }
+
+const GROQ_RATE_LIMIT_RPM = readOptionalPositiveInteger(process.env.GROQ_RATE_LIMIT_RPM) ?? 8;
 
 const MAX_DEPTH_MODE = (process.env.SCAN_MAX_DEPTH_MODE ?? "").toLowerCase();
 const MAX_DEPTH_OVERRIDE = readOptionalPositiveInteger(process.env.SCAN_MAX_DEPTH_DEFAULT);
@@ -1316,10 +1345,12 @@ async function extractScanData(input) {
     }
 
     try {
+      const pageStart = Date.now();
       const page = await extractSinglePage(current.url, {
         requestedMode,
         rootOrigin
       });
+      page.fetchMs = Date.now() - pageStart;
       modeFallbackUsed ||= page.modeFallback;
       page.depth = current.depth;
       pages.push(page);
@@ -2143,6 +2174,96 @@ function deriveSiteName(url) {
   }
 }
 
+function buildNarrativePrompt(report) {
+  const topFindings = (report.findings ?? [])
+    .slice(0, 5)
+    .map((f) => `[${f.severity.toUpperCase()}] ${f.title}: ${f.detail}`)
+    .join("\n");
+  const topActions = (report.prioritizedActions ?? [])
+    .slice(0, 3)
+    .map((a) => `- ${a.title} (impact: ${a.impact}, effort: ${a.effort}): ${a.detail}`)
+    .join("\n");
+  const scores = (report.scores ?? [])
+    .map((s) => `${s.label}: ${s.value}/100 (${s.trend})`)
+    .join(", ");
+  const securityGaps = (report.securityTechnical?.headers?.missing ?? [])
+    .slice(0, 3)
+    .map((h) => h.label)
+    .join(", ");
+
+  return `You are reviewing a website called "${report.siteName}".
+Scan covered ${report.source?.crawl?.pagesScanned ?? 1} page(s).
+
+SCORES: ${scores}
+
+TOP ISSUES:
+${topFindings || "No major issues flagged."}
+
+TOP ACTIONS:
+${topActions || "No specific actions recommended."}
+
+SECURITY GAPS: ${securityGaps || "None detected"}
+
+Respond with a JSON object (no markdown) with exactly these keys:
+{
+  "executiveSummary": "2-3 sentence plain-language overview of the site's overall quality, written for a non-technical business owner",
+  "keyInsights": ["insight 1", "insight 2", "insight 3"],
+  "topActions": ["action 1", "action 2", "action 3"],
+  "encouragements": ["positive highlight 1"]
+}
+Be specific to this site. Avoid jargon. Use plain English. Be honest but encouraging.`;
+}
+
+async function enrichWithAINarrative(report) {
+  if (process.env.AI_NARRATIVE_ENABLED !== "true") return null;
+  if (!process.env.GROQ_API_KEY) return null;
+
+  const GroqSdk = getGroqSdk();
+  if (!GroqSdk) {
+    console.warn("[AI] groq-sdk not installed — skipping AI narrative");
+    return null;
+  }
+
+  if (!_groqRateLimiter.isAllowed(GROQ_RATE_LIMIT_RPM)) {
+    console.warn("[AI] Groq rate limit reached — skipping AI narrative for this scan");
+    return null;
+  }
+
+  const prompt = buildNarrativePrompt(report);
+  try {
+    const Groq = GroqSdk.default ?? GroqSdk;
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const completion = await groq.chat.completions.create({
+      model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a plain-language web quality advisor. Convert technical scan data into clear, helpful insights for a non-technical website owner. Be specific, honest, and encouraging. Never use jargon. Respond only with valid JSON — no markdown, no code fences."
+        },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.4,
+      max_tokens: readOptionalPositiveInteger(process.env.GROQ_MAX_TOKENS) ?? 800,
+      response_format: { type: "json_object" }
+    });
+
+    const raw = completion.choices?.[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(raw);
+    return {
+      executiveSummary: typeof parsed.executiveSummary === "string" ? parsed.executiveSummary : "",
+      keyInsights: Array.isArray(parsed.keyInsights) ? parsed.keyInsights.slice(0, 5) : [],
+      topActions: Array.isArray(parsed.topActions) ? parsed.topActions.slice(0, 3) : [],
+      encouragements: Array.isArray(parsed.encouragements) ? parsed.encouragements.slice(0, 2) : [],
+      model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+      generatedAt: new Date().toISOString()
+    };
+  } catch (err) {
+    console.warn("[AI] Groq enrichment failed (non-fatal):", err.message);
+    return null;
+  }
+}
+
 function buildReport(input, scanData) {
   const aggregate = aggregatePages(scanData);
   const siteName = deriveSiteName(input.url);
@@ -2331,6 +2452,21 @@ function buildReport(input, scanData) {
     },
     bugsReliability,
     coverageScore,
+    performanceSummary: (() => {
+      const pagesWithTiming = scanData.pages.filter((p) => typeof p.fetchMs === "number");
+      if (!pagesWithTiming.length) return undefined;
+      const avg = Math.round(pagesWithTiming.reduce((s, p) => s + p.fetchMs, 0) / pagesWithTiming.length);
+      const slowest = pagesWithTiming.reduce((s, p) => (p.fetchMs > s.fetchMs ? p : s));
+      return {
+        avgFetchMs: avg,
+        slowestPageMs: slowest.fetchMs,
+        slowestPageUrl: slowest.finalUrl,
+        totalResourcesEstimate: pagesWithTiming.reduce(
+          (s, p) => s + (p.scriptCount ?? 0) + (p.imageCount ?? 0),
+          0
+        )
+      };
+    })(),
     source: {
       finalUrl: primaryPage.finalUrl,
       statusCode: primaryPage.statusCode,
@@ -2402,6 +2538,7 @@ function buildReport(input, scanData) {
 module.exports = {
   extractScanData,
   buildReport,
+  enrichWithAINarrative,
   ScanProcessingError,
   __testables: {
     evaluateSecurityHeaders,

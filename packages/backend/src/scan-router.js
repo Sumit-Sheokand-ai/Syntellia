@@ -85,7 +85,8 @@ scanRouter.get("/scans", requireAuth, enforceUserRateLimit, async (req, res) => 
     });
     res.json(result);
   } catch (error) {
-    sendApiError(res, req, 500, "LIST_SCANS_FAILED", error.message);
+    console.error("[internal] LIST_SCANS_FAILED", error);
+    sendApiError(res, req, 500, "LIST_SCANS_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -119,7 +120,8 @@ scanRouter.post("/scans", requireAuth, enforceUserRateLimit, async (req, res) =>
     } else if (error instanceof EntitlementError) {
       return sendApiError(res, req, error.status, error.code, error.message);
     } else {
-      return sendApiError(res, req, 500, "ENTITLEMENT_CHECK_FAILED", error.message);
+      console.error("[internal] ENTITLEMENT_CHECK_FAILED", error);
+      return sendApiError(res, req, 500, "ENTITLEMENT_CHECK_FAILED", "An unexpected error occurred. Please try again.");
     }
   }
 
@@ -127,7 +129,8 @@ scanRouter.post("/scans", requireAuth, enforceUserRateLimit, async (req, res) =>
     const scan = await createScan(req.user.id, req.accessToken, payload);
     res.status(201).json(scan);
   } catch (error) {
-    sendApiError(res, req, 500, "CREATE_SCAN_FAILED", error.message);
+    console.error("[internal] CREATE_SCAN_FAILED", error);
+    sendApiError(res, req, 500, "CREATE_SCAN_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -137,7 +140,8 @@ scanRouter.get("/scans/:scanId", requireAuth, enforceUserRateLimit, async (req, 
     if (!scan) return sendApiError(res, req, 404, "SCAN_NOT_FOUND", "Scan not found.");
     res.json(scan);
   } catch (error) {
-    sendApiError(res, req, 500, "GET_SCAN_FAILED", error.message);
+    console.error("[internal] GET_SCAN_FAILED", error);
+    sendApiError(res, req, 500, "GET_SCAN_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -146,7 +150,8 @@ scanRouter.get("/history-views", requireAuth, enforceUserRateLimit, async (req, 
     const views = await listSavedHistoryViews(req.user.id, req.accessToken);
     res.json({ views });
   } catch (error) {
-    sendApiError(res, req, 500, "LIST_HISTORY_VIEWS_FAILED", error.message);
+    console.error("[internal] LIST_HISTORY_VIEWS_FAILED", error);
+    sendApiError(res, req, 500, "LIST_HISTORY_VIEWS_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -167,7 +172,8 @@ scanRouter.post("/history-views", requireAuth, enforceUserRateLimit, async (req,
     const views = await listSavedHistoryViews(req.user.id, req.accessToken);
     res.json({ view, views });
   } catch (error) {
-    sendApiError(res, req, 500, "SAVE_HISTORY_VIEW_FAILED", error.message);
+    console.error("[internal] SAVE_HISTORY_VIEW_FAILED", error);
+    sendApiError(res, req, 500, "SAVE_HISTORY_VIEW_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -186,7 +192,8 @@ scanRouter.delete("/history-views/:viewId", requireAuth, enforceUserRateLimit, a
     const views = await listSavedHistoryViews(req.user.id, req.accessToken);
     res.json({ views });
   } catch (error) {
-    sendApiError(res, req, 500, "DELETE_HISTORY_VIEW_FAILED", error.message);
+    console.error("[internal] DELETE_HISTORY_VIEW_FAILED", error);
+    sendApiError(res, req, 500, "DELETE_HISTORY_VIEW_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -203,7 +210,8 @@ scanRouter.post("/scans/:scanId/share-link", requireAuth, enforceUserRateLimit, 
       expiresAt: share.expiresAt
     });
   } catch (error) {
-    sendApiError(res, req, 500, "SHARE_LINK_FAILED", error.message);
+    console.error("[internal] SHARE_LINK_FAILED", error);
+    sendApiError(res, req, 500, "SHARE_LINK_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -216,7 +224,8 @@ scanRouter.post("/scans/:scanId/share-link/revoke", requireAuth, enforceUserRate
 
     res.status(204).send();
   } catch (error) {
-    sendApiError(res, req, 500, "SHARE_LINK_REVOKE_FAILED", error.message);
+    console.error("[internal] SHARE_LINK_REVOKE_FAILED", error);
+    sendApiError(res, req, 500, "SHARE_LINK_REVOKE_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -233,7 +242,8 @@ scanRouter.get("/shared/:shareToken", enforceUserRateLimit, async (req, res) => 
     }
     res.json({ scan: sharedScan });
   } catch (error) {
-    sendApiError(res, req, 500, "GET_SHARED_SCAN_FAILED", error.message);
+    console.error("[internal] GET_SHARED_SCAN_FAILED", error);
+    sendApiError(res, req, 500, "GET_SHARED_SCAN_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -255,7 +265,8 @@ scanRouter.get("/billing/entitlements", requireAuth, enforceUserRateLimit, async
       });
     }
 
-    sendApiError(res, req, 500, "GET_ENTITLEMENT_FAILED", error.message);
+    console.error("[internal] GET_ENTITLEMENT_FAILED", error);
+    sendApiError(res, req, 500, "GET_ENTITLEMENT_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 
@@ -273,7 +284,8 @@ scanRouter.get(
         ts: new Date().toISOString()
       });
     } catch (error) {
-      sendApiError(res, req, 500, "ADMIN_ACCESS_CONTEXT_FAILED", error.message);
+      console.error("[internal] ADMIN_ACCESS_CONTEXT_FAILED", error);
+      sendApiError(res, req, 500, "ADMIN_ACCESS_CONTEXT_FAILED", "An unexpected error occurred. Please try again.");
     }
   }
 );
@@ -294,7 +306,8 @@ scanRouter.get(
         ts: new Date().toISOString()
       });
     } catch (error) {
-      sendApiError(res, req, 500, "ADMIN_ENTITLEMENT_OVERVIEW_FAILED", error.message);
+      console.error("[internal] ADMIN_ENTITLEMENT_OVERVIEW_FAILED", error);
+      sendApiError(res, req, 500, "ADMIN_ENTITLEMENT_OVERVIEW_FAILED", "An unexpected error occurred. Please try again.");
     }
   }
 );
@@ -328,21 +341,32 @@ scanRouter.get(
         ts: new Date().toISOString()
       });
     } catch (error) {
-      sendApiError(res, req, 500, "ADMIN_ANALYTICS_EVENTS_FAILED", error.message);
+      console.error("[internal] ADMIN_ANALYTICS_EVENTS_FAILED", error);
+      sendApiError(res, req, 500, "ADMIN_ANALYTICS_EVENTS_FAILED", "An unexpected error occurred. Please try again.");
     }
   }
 );
 
+const ALLOWED_ANALYTICS_PROP_KEYS = ["scanId", "scanSize", "focusArea", "status", "durationMs", "page", "action"];
+
 scanRouter.post("/analytics/events", resolveOptionalAuth, enforceUserRateLimit, async (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const name = typeof body.name === "string" ? body.name : "";
-  const props = body.props && typeof body.props === "object" && !Array.isArray(body.props)
+  const rawProps = body.props && typeof body.props === "object" && !Array.isArray(body.props)
     ? body.props
     : {};
 
   if (!name) {
     return sendApiError(res, req, 400, "INVALID_ANALYTICS_EVENT", "Analytics event name is required.");
   }
+
+  const props = Object.fromEntries(
+    Object.entries(rawProps).filter(
+      ([k, v]) =>
+        ALLOWED_ANALYTICS_PROP_KEYS.includes(k) &&
+        ["string", "number", "boolean"].includes(typeof v)
+    )
+  );
 
   try {
     await recordAnalyticsEvent({
@@ -361,7 +385,8 @@ scanRouter.post("/analytics/events", resolveOptionalAuth, enforceUserRateLimit, 
       });
     }
 
-    sendApiError(res, req, 500, "ANALYTICS_EVENT_FAILED", error.message);
+    console.error("[internal] ANALYTICS_EVENT_FAILED", error);
+    sendApiError(res, req, 500, "ANALYTICS_EVENT_FAILED", "An unexpected error occurred. Please try again.");
   }
 });
 

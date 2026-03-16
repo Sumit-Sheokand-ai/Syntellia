@@ -131,6 +131,8 @@ export default function ScanHistoryPage() {
   const [savedViewsError, setSavedViewsError] = useState<string | null>(null);
   const [newViewName, setNewViewName] = useState("");
   const [alerts, setAlerts] = useState<HistoryAlertSummary | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     let isActive = true;
@@ -198,6 +200,9 @@ export default function ScanHistoryPage() {
       const matchesStatus = statusFilter === "All" ? true : scan.status === statusFilter;
       if (!matchesStatus) return false;
 
+      if (dateFrom && new Date(scan.createdAt) < new Date(dateFrom)) return false;
+      if (dateTo && new Date(scan.createdAt) > new Date(`${dateTo}T23:59:59Z`)) return false;
+
       if (!text) return true;
 
       return (
@@ -207,7 +212,7 @@ export default function ScanHistoryPage() {
         scan.projectName.toLowerCase().includes(text)
       );
     });
-  }, [scans, searchText, statusFilter]);
+  }, [scans, searchText, statusFilter, dateFrom, dateTo]);
 
   const saveCurrentView = async () => {
     const name = newViewName.trim();
@@ -315,6 +320,26 @@ export default function ScanHistoryPage() {
               onChange={(event) => setSearchText(event.target.value)}
               placeholder={t("scan.history.searchPlaceholder")}
               className="w-full rounded-[18px] border border-white/12 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-white/40"
+            />
+          </div>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs uppercase tracking-[0.24em] text-white/45">From date</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className="w-full rounded-[18px] border border-white/12 bg-white/6 px-4 py-3 text-sm text-white [color-scheme:dark]"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs uppercase tracking-[0.24em] text-white/45">To date</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              className="w-full rounded-[18px] border border-white/12 bg-white/6 px-4 py-3 text-sm text-white [color-scheme:dark]"
             />
           </div>
         </div>

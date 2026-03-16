@@ -396,9 +396,35 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               <h1 className="text-3xl font-semibold text-white md:text-5xl">{report.siteName}</h1>
               <p className="max-w-3xl text-base leading-8 text-white/68">{report.summary}</p>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/72">
-              <div>{report.scope}</div>
-              <div>{new Date(report.scannedAt).toLocaleString()}</div>
+            <div className="flex flex-col gap-3">
+              <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/72">
+                <div>{report.scope}</div>
+                <div>{new Date(report.scannedAt).toLocaleString()}</div>
+              </div>
+              <div className="flex gap-2" data-print-hide>
+                <button
+                  type="button"
+                  className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.05] px-4 py-2 text-xs font-medium text-white/65 transition hover:bg-white/[0.09] hover:text-white"
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `syntellia-${report.siteName}-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  Export JSON
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.05] px-4 py-2 text-xs font-medium text-white/65 transition hover:bg-white/[0.09] hover:text-white"
+                  onClick={() => window.print()}
+                >
+                  Print / PDF
+                </button>
+              </div>
             </div>
           </div>
         </ShellCard>
@@ -422,6 +448,110 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           </div>
         </ShellCard>
       </div>
+
+      {report.aiNarrative ? (
+        <ShellCard className="p-7 border-[#7c6aff]/20 bg-[#7c6aff]/[0.04]">
+          <div className="flex items-center gap-2 mb-5">
+            <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-[#a78bfa]">
+              AI Analysis · {report.aiNarrative.model}
+            </span>
+          </div>
+          <p className="text-base leading-relaxed text-white/85">{report.aiNarrative.executiveSummary}</p>
+
+          {report.aiNarrative.keyInsights.length > 0 ? (
+            <ul className="mt-5 space-y-2">
+              {report.aiNarrative.keyInsights.map((insight, i) => (
+                <li key={i} className="flex gap-3 text-sm text-white/70">
+                  <span className="text-[#7c6aff] mt-0.5 shrink-0">→</span>
+                  {insight}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {report.aiNarrative.topActions.length > 0 ? (
+            <div className="mt-6 space-y-2">
+              <p className="text-[10px] font-medium uppercase tracking-widest text-white/40">This week</p>
+              {report.aiNarrative.topActions.map((action, i) => (
+                <div key={i} className="flex gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm text-white/75">
+                  <span className="shrink-0 text-[#d4a853]">{i + 1}.</span>
+                  {action}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {report.aiNarrative.encouragements.length > 0 ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {report.aiNarrative.encouragements.map((enc, i) => (
+                <div key={i} className="rounded-full border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.06] px-4 py-2 text-xs text-[#99ffe8]">
+                  {enc}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </ShellCard>
+      ) : null}
+
+      {report.performanceSummary ? (
+        <ShellCard className="p-6">
+          <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/40">Performance</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] text-white/40">Avg fetch time</div>
+              <div className={`mt-1.5 text-lg font-semibold ${
+                report.performanceSummary.avgFetchMs < 500
+                  ? "text-[#2dd4bf]"
+                  : report.performanceSummary.avgFetchMs < 1500
+                    ? "text-[#d4a853]"
+                    : "text-[#ffb39f]"
+              }`}>
+                {report.performanceSummary.avgFetchMs < 1000
+                  ? `${report.performanceSummary.avgFetchMs}ms`
+                  : `${(report.performanceSummary.avgFetchMs / 1000).toFixed(1)}s`}
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] text-white/40">Slowest page</div>
+              <div className={`mt-1.5 text-lg font-semibold ${
+                report.performanceSummary.slowestPageMs < 1000
+                  ? "text-[#2dd4bf]"
+                  : report.performanceSummary.slowestPageMs < 3000
+                    ? "text-[#d4a853]"
+                    : "text-[#ffb39f]"
+              }`}>
+                {report.performanceSummary.slowestPageMs < 1000
+                  ? `${report.performanceSummary.slowestPageMs}ms`
+                  : `${(report.performanceSummary.slowestPageMs / 1000).toFixed(1)}s`}
+              </div>
+              <div className="mt-1 text-[10px] text-white/35 truncate">{report.performanceSummary.slowestPageUrl}</div>
+            </div>
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] text-white/40">Est. resources</div>
+              <div className="mt-1.5 text-lg font-semibold text-white/80">
+                {report.performanceSummary.totalResourcesEstimate}
+              </div>
+              <div className="mt-1 text-[10px] text-white/35">scripts + images</div>
+            </div>
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] text-white/40">Speed rating</div>
+              <div className={`mt-1.5 text-sm font-medium ${
+                report.performanceSummary.avgFetchMs < 500
+                  ? "text-[#2dd4bf]"
+                  : report.performanceSummary.avgFetchMs < 1500
+                    ? "text-[#d4a853]"
+                    : "text-[#ffb39f]"
+              }`}>
+                {report.performanceSummary.avgFetchMs < 500
+                  ? "Fast"
+                  : report.performanceSummary.avgFetchMs < 1500
+                    ? "Average"
+                    : "Slow"}
+              </div>
+            </div>
+          </div>
+        </ShellCard>
+      ) : null}
 
       <ShellCard className="p-3">
         <div className="grid grid-cols-3 gap-2 rounded-[18px] border border-white/8 bg-white/5 p-2" role="tablist" aria-label="Report sections">

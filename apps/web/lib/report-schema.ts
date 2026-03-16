@@ -243,6 +243,22 @@ export type CoverageScore = {
   label: string;
 };
 
+export type AIEnrichedNarrative = {
+  executiveSummary: string;
+  keyInsights: string[];
+  topActions: string[];
+  encouragements: string[];
+  model: string;
+  generatedAt: string;
+};
+
+export type PerformanceSummary = {
+  avgFetchMs: number;
+  slowestPageMs: number;
+  slowestPageUrl: string;
+  totalResourcesEstimate: number;
+};
+
 export type ScanReport = {
   reportVersion?: string;
   siteName: string;
@@ -261,5 +277,7 @@ export type ScanReport = {
   securityTechnical?: SecurityTechnicalReport;
   bugsReliability?: BugsReliabilityReport;
   coverageScore?: CoverageScore;
+  aiNarrative?: AIEnrichedNarrative;
+  performanceSummary?: PerformanceSummary;
   source: ExtractedPageSource;
 };
