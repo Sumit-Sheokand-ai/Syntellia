@@ -8,7 +8,6 @@ import type {
   SecurityTechnicalReport,
   UiStyleReport
 } from "@/lib/report-schema";
-import { trackAnalyticsEvent } from "@/lib/scan-api-client";
 import { ShellCard } from "@/components/ui/shell-card";
 
 type ReportOverviewProps = {
@@ -656,7 +655,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               <h2 className="mt-4 text-2xl font-semibold text-white">{executiveSummary.headline}</h2>
               <div className="mt-6 grid gap-4 md:grid-cols-3 text-sm text-white/72">
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/55">What's going well</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/55">What&apos;s going well</p>
                   <ul className="mt-3 space-y-2">
                     {executiveSummary.highlights.map((item) => (
                       <li key={item} className="text-white/78">{item}</li>
@@ -869,7 +868,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               </div>
             </ShellCard>
             <ShellCard className="p-8">
-              <h2 className="text-2xl font-semibold text-white">What's on your page</h2>
+              <h2 className="text-2xl font-semibold text-white">What&apos;s on your page</h2>
               <div className="mt-6 grid gap-3 text-sm text-white/75">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   Headings found: {uiStyle.contentClarity.headingCount}
@@ -990,7 +989,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           <div id="security-section-headers" className="grid gap-5 lg:grid-cols-[1.05fr,0.95fr]">
             <ShellCard className="p-8">
               <h2 className="text-2xl font-semibold text-white">Browser safety settings</h2>
-              <p className="mt-2 text-sm text-white/52">When these settings are missing, browsers can't protect your visitors properly — leaving them open to attacks and data theft</p>
+              <p className="mt-2 text-sm text-white/52">When these settings are missing, browsers can&apos;t protect your visitors properly — leaving them open to attacks and data theft</p>
               <div className="mt-6 space-y-4">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-white/55">Missing safety settings</p>
@@ -1024,10 +1023,10 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </ShellCard>
             <ShellCard id="security-section-cookies" className="p-8">
               <h2 className="text-2xl font-semibold text-white">Visitor files, links, and contact forms</h2>
-              <p className="mt-2 text-sm text-white/52">Small files saved on visitors' devices, links, and forms — if not protected, personal data can be stolen</p>
+              <p className="mt-2 text-sm text-white/52">Small files saved on visitors&apos; devices, links, and forms — if not protected, personal data can be stolen</p>
               <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Small files saved on visitors' devices</dt>
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Small files saved on visitors&apos; devices</dt>
                   <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.cookies.totalSetCookie}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
@@ -1114,8 +1113,8 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           </ShellCard>
 
           <ShellCard id="security-section-crawl" className="p-8">
-            <h2 className="text-2xl font-semibold text-white">What the scan could and couldn't reach</h2>
-            <p className="mt-2 text-sm text-white/52">Some pages may have been skipped — here's why</p>
+            <h2 className="text-2xl font-semibold text-white">What the scan could and couldn&apos;t reach</h2>
+            <p className="mt-2 text-sm text-white/52">Some pages may have been skipped — here&apos;s why</p>
             <dl className="mt-6 grid gap-3 md:grid-cols-3 text-sm">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                 <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages your site told us not to check</dt>

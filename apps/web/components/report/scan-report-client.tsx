@@ -22,7 +22,7 @@ function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
   const progressCopy =
     scan.status === "Queued"
       ? "Your website is in the queue and will start shortly."
-      : "We're loading and checking your website right now.";
+      : "We&apos;re loading and checking your website right now.";
   const startedAtMs = Date.parse(scan.startedAt ?? scan.createdAt);
   const elapsedMinutes = Number.isFinite(startedAtMs)
     ? Math.max(0, Math.round((Date.now() - startedAtMs) / 60_000))
@@ -63,7 +63,7 @@ function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Time so far: ~{elapsedMinutes} min</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Expected finish: ~{estimatedTotalMinutes} min total</div>
           </div>
-          <p className="mt-6 text-sm leading-7 text-white/58">This page updates on its own — your report will appear here the moment it's ready.</p>
+          <p className="mt-6 text-sm leading-7 text-white/58">This page updates on its own — your report will appear here the moment it&apos;s ready.</p>
         </ShellCard>
       </div>
 
@@ -92,13 +92,13 @@ function ReScanLink({ url, projectName }: { url: string; projectName?: string })
 function FailureView({ scan }: { scan: ScanRecord }) {
   return (
     <ShellCard className="p-8">
-      <p className="text-sm uppercase tracking-[0.3em] text-[#ffb39f]">We couldn't finish checking this page</p>
+      <p className="text-sm uppercase tracking-[0.3em] text-[#ffb39f]">We couldn&apos;t finish checking this page</p>
       <h1 className="mt-4 text-3xl font-semibold text-white">Something stopped us from completing the check.</h1>
       <p className="mt-4 max-w-3xl text-base leading-8 text-white/68">
-        We reached your page but couldn't read it properly. This usually happens when the page needs someone to log in first, or if it blocks outside visitors.
+        We reached your page but couldn&apos;t read it properly. This usually happens when the page needs someone to log in first, or if it blocks outside visitors.
       </p>
       <div className="mt-8 rounded-[24px] border border-[#ffb39f]/20 bg-[#ffb39f]/8 p-5 text-sm leading-7 text-[#ffd3c8]">
-        {scan.error ?? "We couldn't load this page."}
+        {scan.error ?? "We couldn&apos;t load this page."}
       </div>
       <div className="mt-6">
         <ReScanLink url={scan.url} projectName={scan.projectName} />
