@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import { toAbsoluteAppUrl } from "@/lib/base-path";
 
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [nextPath, setNextPath] = useState("/app/dashboard");
@@ -76,15 +78,25 @@ export default function LoginPage() {
           className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
         />
         <label htmlFor="login-password" className="sr-only">Password</label>
-        <input
-          id="login-password"
-          type="password"
-          required
-          placeholder="Password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
-        />
+        <div className="relative">
+          <input
+            id="login-password"
+            type={showPassword ? "text" : "password"}
+            required
+            placeholder="Password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder:text-white/35"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/45 transition hover:text-white/80"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
         {error ? <p className="text-sm text-[#ffb39f]">{error}</p> : null}
         <button type="submit" disabled={isPending} className="w-full rounded-full bg-white px-5 py-3 text-sm font-medium text-[#09101d] disabled:opacity-60">
           {isPending ? "Signing in..." : "Sign in"}
