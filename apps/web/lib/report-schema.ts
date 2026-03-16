@@ -221,6 +221,28 @@ export type SecurityTechnicalReport = {
   }>;
 };
 
+export type BugEntry = {
+  page: string;
+  issue: string;
+  detail: string;
+  remediation: string;
+  severity: "high" | "medium" | "low";
+  confidence: "confirmed" | "likely" | "possible";
+};
+
+export type BugsReliabilityReport = {
+  summary: string;
+  bugCount: number;
+  bugs: BugEntry[];
+};
+
+export type CoverageScore = {
+  pagesScanned: number;
+  pagesAttempted: number;
+  blockedByRobots: number;
+  label: string;
+};
+
 export type ScanReport = {
   reportVersion?: string;
   siteName: string;
@@ -237,5 +259,7 @@ export type ScanReport = {
   opportunityMap?: OpportunityMap;
   uiStyle?: UiStyleReport;
   securityTechnical?: SecurityTechnicalReport;
+  bugsReliability?: BugsReliabilityReport;
+  coverageScore?: CoverageScore;
   source: ExtractedPageSource;
 };

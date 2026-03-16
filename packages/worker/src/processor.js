@@ -1826,6 +1826,95 @@ function buildImplementationSnippets(aggregate) {
   ];
 }
 
+const BUG_CODE_MAP = {
+  FETCH_HTTP_404: {
+    issue: "Broken page link",
+    detail: "This page returned a 'not found' response (HTTP 404). Visitors and search engines following a link here will hit a dead end.",
+    remediation: "Find the links pointing to this URL, then either restore the page, fix the link, or redirect it to the right destination.",
+    severity: "high",
+    confidence: "confirmed"
+  },
+  FETCH_HTTP_403: {
+    issue: "Page blocked access",
+    detail: "This page refused access to the scanner (HTTP 403 — Forbidden). Visitors without the right credentials would see the same block.",
+    remediation: "If this page should be public, check your server access rules and authentication settings. If it's intentionally restricted, no action needed.",
+    severity: "medium",
+    confidence: "confirmed"
+  },
+  FETCH_HTTP_500: {
+    issue: "Server error on this page",
+    detail: "This page returned a server error (HTTP 500). This is a technical failure on your server that visitors would also experience.",
+    remediation: "Check your server logs for errors around this URL and fix the underlying server-side issue.",
+    severity: "high",
+    confidence: "confirmed"
+  },
+  FETCH_HTTP_503: {
+    issue: "Page temporarily unavailable",
+    detail: "This page was unavailable at the time of the scan (HTTP 503 — Service Unavailable). It may be a temporary outage or deliberate maintenance.",
+    remediation: "If this is persistent, check your server health and any maintenance windows. Add a helpful message for visitors if the page will be down for a while.",
+    severity: "medium",
+    confidence: "confirmed"
+  },
+  TIME_BUDGET_EXCEEDED: {
+    issue: "Scan did not reach all pages",
+    detail: "The scan reached its time limit before it could check all queued pages. Some pages may not have been analyzed.",
+    remediation: "This is not a site issue — consider running a more targeted scan to cover these pages individually.",
+    severity: "low",
+    confidence: "possible"
+  },
+  UNKNOWN_PAGE_FAILURE: {
+    issue: "Page could not be loaded",
+    detail: "An unexpected error prevented this page from loading during the scan. Visitors may encounter the same problem.",
+    remediation: "Open the URL in a browser and in a private window to confirm whether it loads correctly. Check server logs if it doesn't.",
+    severity: "medium",
+    confidence: "likely"
+  }
+};
+
+function buildBugsReliability(scanData) {
+  const bugs = [];
+
+  for (const error of scanData.crawl.errors) {
+    const code = error.code ?? "UNKNOWN_PAGE_FAILURE";
+    // Normalize HTTP error codes like FETCH_HTTP_404 → lookup; fallback for unmapped HTTP codes
+    const knownEntry = BUG_CODE_MAP[code];
+    if (knownEntry) {
+      bugs.push({ page: error.url, ...knownEntry });
+    } else if (code.startsWith("FETCH_HTTP_")) {
+      const httpStatus = code.replace("FETCH_HTTP_", "");
+      bugs.push({
+        page: error.url,
+        issue: `Page returned an error (${httpStatus})`,
+        detail: `This page responded with HTTP ${httpStatus}. Depending on the status, visitors may see an error or be unable to reach the page.`,
+        remediation: "Open the page in a browser to confirm what visitors see, and investigate your server configuration or content for this URL.",
+        severity: Number(httpStatus) >= 500 ? "high" : "medium",
+        confidence: "confirmed"
+      });
+    } else {
+      bugs.push({
+        page: error.url,
+        issue: "Page could not be loaded",
+        detail: error.message ?? "An error prevented this page from being analyzed.",
+        remediation: "Open the URL in a browser to confirm whether it loads correctly for visitors.",
+        severity: "medium",
+        confidence: "possible"
+      });
+    }
+  }
+
+  const bugCount = bugs.length;
+  let summary;
+  if (bugCount === 0) {
+    summary = "No broken pages or crawl errors were found in the scanned pages.";
+  } else if (bugCount === 1) {
+    summary = "1 page issue was found during the scan.";
+  } else {
+    summary = `${bugCount} page issues were found during the scan.`;
+  }
+
+  return { summary, bugCount, bugs };
+}
+
 function buildSecurityRecommendations(aggregate, scanData) {
   const actions = [];
   const missingHeaders = aggregate.securityTechnical.headers.missing;
@@ -1833,67 +1922,64 @@ function buildSecurityRecommendations(aggregate, scanData) {
 
   if (aggregate.securityTechnical.transport.httpsCoverage < 100) {
     actions.push({
-      title: "Make sure every page loads securely",
-      detail: `Only ${aggregate.securityTechnical.transport.httpsCoverage}% of scanned pages used HTTPS.`,
+      title: "Protect visitors from unencrypted connections",
+      detail: `${100 - aggregate.securityTechnical.transport.httpsCoverage}% of scanned pages loaded over HTTP instead of HTTPS. Visitors on those pages are exposed to eavesdropping and data interception. Switch all pages to HTTPS and set up a redirect from HTTP to HTTPS.`,
       impact: "high"
     });
   }
 
   if (highImpactMissing.length > 0) {
     actions.push({
-      title: "Add essential browser protections",
-      detail: highImpactMissing
-        .slice(0, 3)
-        .map((entry) => `${entry.label} missing on ${entry.pages} page${entry.pages === 1 ? "" : "s"}`)
-        .join(", "),
+      title: "Close the gaps that leave browsers unguarded",
+      detail: `${highImpactMissing.length} critical browser protection${highImpactMissing.length === 1 ? "" : "s"} ${highImpactMissing.length === 1 ? "is" : "are"} missing: ${highImpactMissing.slice(0, 3).map((e) => e.label).join(", ")}. Without these, browsers make unsafe assumptions about your content — increasing the risk of script injection, clickjacking, and data leakage for every visitor.`,
       impact: "high"
     });
   }
 
   if (aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount > 0) {
     actions.push({
-      title: "Protect links that open in new tabs",
-      detail: `${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount} link(s) open in a new tab without extra safety flags.`,
+      title: "Stop new-tab links from exposing visitor sessions",
+      detail: `${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount} link${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount === 1 ? "" : "s"} open in a new tab without the safety attributes that prevent the destination page from accessing your site's context. Add rel="noopener noreferrer" to all target="_blank" links.`,
       impact: "medium"
     });
   }
 
   if (aggregate.securityTechnical.linksAndForms.insecureFormActionCount > 0) {
     actions.push({
-      title: "Secure every form submission",
-      detail: `${aggregate.securityTechnical.linksAndForms.insecureFormActionCount} form action(s) still submit over HTTP.`,
+      title: "Stop form data being sent in plain text",
+      detail: `${aggregate.securityTechnical.linksAndForms.insecureFormActionCount} form${aggregate.securityTechnical.linksAndForms.insecureFormActionCount === 1 ? "" : "s"} submit data over HTTP, meaning anything visitors type — including personal details — can be intercepted in transit. Update all form action URLs to HTTPS.`,
       impact: "high"
     });
   }
 
   if (aggregate.securityTechnical.scriptSurface.mixedContentCount > 0) {
     actions.push({
-      title: "Remove insecure assets on secure pages",
-      detail: `${aggregate.securityTechnical.scriptSurface.mixedContentCount} mixed-content asset reference(s) were found.`,
+      title: "Remove insecure content from secure pages",
+      detail: `${aggregate.securityTechnical.scriptSurface.mixedContentCount} asset${aggregate.securityTechnical.scriptSurface.mixedContentCount === 1 ? "" : "s"} load over HTTP on pages that use HTTPS. This mixed content weakens the security of the whole page and can trigger browser warnings that erode visitor trust. Update all asset URLs to HTTPS.`,
       impact: "high"
     });
   }
 
   if (aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount > 0) {
     actions.push({
-      title: "Verify third-party scripts are authentic",
-      detail: `${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount} external script(s) are missing integrity checks.`,
+      title: "Guard against tampered third-party scripts",
+      detail: `${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount} external script${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount === 1 ? "" : "s"} load without integrity checks. If any of those third-party servers were compromised, malicious code could silently run on your site for every visitor. Add integrity and crossorigin attributes to external scripts.`,
       impact: "medium"
     });
   }
 
   if (aggregate.securityTechnical.cors.riskyPageCount > 0) {
     actions.push({
-      title: "Limit overly open cross-site access",
-      detail: `Cross-site access issues were detected on ${aggregate.securityTechnical.cors.riskyPageCount} scanned page(s).`,
+      title: "Restrict which other sites can read your data",
+      detail: `${aggregate.securityTechnical.cors.riskyPageCount} page${aggregate.securityTechnical.cors.riskyPageCount === 1 ? "" : "s"} have overly open cross-origin access rules. This could allow other websites to silently request and read your content or API responses on behalf of visitors. Scope your Access-Control-Allow-Origin header to trusted domains only.`,
       impact: "medium"
     });
   }
 
   if (aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount > 0) {
     actions.push({
-      title: "Protect sign-in flows from unwanted actions",
-      detail: `${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount} sign-in page(s) lacked visible request-protection signals.`,
+      title: "Defend sign-in pages from cross-site request attacks",
+      detail: `${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount} sign-in page${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount === 1 ? "" : "s"} had no visible protection against cross-site request forgery. Without CSRF tokens, a malicious site could trick a logged-in visitor into performing unwanted actions on their account. Add CSRF token fields to all authentication forms.`,
       impact: "high"
     });
   }
@@ -1905,8 +1991,8 @@ function buildSecurityRecommendations(aggregate, scanData) {
       aggregate.securityTechnical.cookies.sameSiteRate < 100
     ) {
       actions.push({
-        title: "Tighten session cookie protections",
-        detail: `Cookie safety flags: Secure ${aggregate.securityTechnical.cookies.secureRate}%, HttpOnly ${aggregate.securityTechnical.cookies.httpOnlyRate}%, SameSite ${aggregate.securityTechnical.cookies.sameSiteRate}%.`,
+        title: "Reduce the risk of session theft via cookies",
+        detail: `Cookies are set without full security flags: ${aggregate.securityTechnical.cookies.secureRate}% are HTTPS-only, ${aggregate.securityTechnical.cookies.httpOnlyRate}% are hidden from JavaScript, ${aggregate.securityTechnical.cookies.sameSiteRate}% are protected from cross-site requests. Cookies without these flags can be stolen or misused, exposing visitor sessions. Set Secure, HttpOnly, and SameSite=Strict (or Lax) on all cookies that don't need cross-site access.`,
         impact: "medium"
       });
     }
@@ -1914,8 +2000,8 @@ function buildSecurityRecommendations(aggregate, scanData) {
 
   if (scanData.crawl.errors.length > 0) {
     actions.push({
-      title: "Follow up on scan interruptions",
-      detail: `${scanData.crawl.errors.length} page-level error(s) occurred during the scan.`,
+      title: "Investigate pages the scan couldn't reach",
+      detail: `${scanData.crawl.errors.length} page${scanData.crawl.errors.length === 1 ? "" : "s"} could not be loaded during the scan. These pages were not analyzed for security issues and may have problems visitors would also encounter. See the Bugs & Reliability section for details.`,
       impact: "low"
     });
   }
@@ -1923,7 +2009,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
   if (!actions.length) {
     actions.push({
       title: "Maintain current protection level",
-      detail: "No major hardening gaps were detected in scanned pages.",
+      detail: "No major security gaps were detected in the scanned pages. Keep your security headers, cookie flags, and HTTPS setup up to date as your site evolves.",
       impact: "low"
     });
   }
@@ -2065,6 +2151,20 @@ function buildReport(input, scanData) {
   const prioritizedActions = buildPrioritizedActions(aggregate);
   const securityRecommendations = buildSecurityRecommendations(aggregate, scanData);
   const securityPostureScore = computeSecurityPostureScore(aggregate);
+  const bugsReliability = buildBugsReliability(scanData);
+  const pagesScanned = scanData.crawl.pagesScanned;
+  const pagesAttempted = scanData.crawl.pagesAttempted;
+  const blockedByRobots = scanData.crawl.blockedByRobots;
+  const coverageScore = {
+    pagesScanned,
+    pagesAttempted,
+    blockedByRobots,
+    label: pagesScanned >= pagesAttempted && blockedByRobots === 0
+      ? "Full coverage"
+      : blockedByRobots > 0
+        ? "Partial — some pages blocked by robots.txt"
+        : "Partial — time or page limit reached"
+  };
 
   const clarityScore = scoreWithinRange(
     42 +
@@ -2229,6 +2329,8 @@ function buildReport(input, scanData) {
       pageHighlights: aggregate.securityTechnical.pageHighlights,
       recommendations: securityRecommendations
     },
+    bugsReliability,
+    coverageScore,
     source: {
       finalUrl: primaryPage.finalUrl,
       statusCode: primaryPage.statusCode,

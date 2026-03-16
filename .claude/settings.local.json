@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"require\\(''./src/processor.js''\\); console.log\\(''OK''\\)\")"
+    ]
+  }
+}

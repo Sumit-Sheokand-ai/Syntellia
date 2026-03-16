@@ -280,7 +280,7 @@ function colorTokenChip(value: string) {
 }
 
 export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
-  const [activeTab, setActiveTab] = useState<"ui" | "security">("ui");
+  const [activeTab, setActiveTab] = useState<"ui" | "security" | "bugs">("ui");
   const uiStyle = useMemo(() => report.uiStyle ?? buildUiStyleFallback(report), [report]);
   const securityTechnical = useMemo(
     () => report.securityTechnical ?? buildSecurityFallback(report),
@@ -362,10 +362,17 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
       siteName: report.siteName
     });
   };
+  const tabOrder: Array<"ui" | "security" | "bugs"> = ["ui", "security", "bugs"];
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    const currentIndex = tabOrder.indexOf(activeTab);
+    if (event.key === "ArrowRight") {
       event.preventDefault();
-      setActiveTab((current) => (current === "ui" ? "security" : "ui"));
+      setActiveTab(tabOrder[(currentIndex + 1) % tabOrder.length]);
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setActiveTab(tabOrder[(currentIndex - 1 + tabOrder.length) % tabOrder.length]);
       return;
     }
     if (event.key === "Home") {
@@ -375,7 +382,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
     }
     if (event.key === "End") {
       event.preventDefault();
-      setActiveTab("security");
+      setActiveTab("bugs");
     }
   };
 
@@ -401,13 +408,23 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Status: {scanMeta?.status ?? "Created"}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Project: {scanMeta?.projectName ?? "General"}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Analysis mode: Comprehensive</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Coverage target: up to {scanMeta?.pageLimit ?? 10} pages</div>
+            {report.coverageScore ? (
+              <div className={`rounded-2xl border px-4 py-3 ${
+                report.coverageScore.pagesScanned >= report.coverageScore.pagesAttempted && report.coverageScore.blockedByRobots === 0
+                  ? "border-white/10 bg-white/5"
+                  : "border-[#ffd08a]/30 bg-[#ffd08a]/6"
+              }`}>
+                {report.coverageScore.pagesScanned}/{report.coverageScore.pagesAttempted} pages analyzed · {report.coverageScore.label}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Coverage target: up to {scanMeta?.pageLimit ?? 10} pages</div>
+            )}
           </div>
         </ShellCard>
       </div>
 
       <ShellCard className="p-3">
-        <div className="grid grid-cols-2 gap-2 rounded-[18px] border border-white/8 bg-white/5 p-2" role="tablist" aria-label="Report sections">
+        <div className="grid grid-cols-3 gap-2 rounded-[18px] border border-white/8 bg-white/5 p-2" role="tablist" aria-label="Report sections">
           <button
             type="button"
             id="report-tab-ui"
@@ -436,7 +453,22 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             onClick={() => setActiveTab("security")}
             onKeyDown={handleTabKeyDown}
           >
-            Security & Technical
+            Security
+          </button>
+          <button
+            type="button"
+            id="report-tab-bugs"
+            role="tab"
+            aria-selected={activeTab === "bugs"}
+            aria-controls="report-panel-bugs"
+            tabIndex={activeTab === "bugs" ? 0 : -1}
+            className={`rounded-[14px] px-4 py-3 text-sm uppercase tracking-[0.22em] transition ${
+              activeTab === "bugs" ? "bg-white text-[#09101d]" : "bg-transparent text-white/72 hover:bg-white/10"
+            }`}
+            onClick={() => setActiveTab("bugs")}
+            onKeyDown={handleTabKeyDown}
+          >
+            Bugs & Reliability
           </button>
         </div>
       </ShellCard>
@@ -750,9 +782,30 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </div>
           </ShellCard>
         </div>
-      ) : (
+      ) : activeTab === "security" ? (
         <div id="report-panel-security" role="tabpanel" aria-labelledby="report-tab-security" className="space-y-8">
-          <ShellCard className="p-8">
+          <ShellCard className="p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-[0.2em] text-white/45">Jump to</span>
+              {[
+                { id: "security-section-posture", label: "Posture score" },
+                { id: "security-section-headers", label: "Header hardening" },
+                { id: "security-section-cookies", label: "Cookies & links" },
+                { id: "security-section-actions", label: "Recommended actions" },
+                { id: "security-section-crawl", label: "Crawl diagnostics" }
+              ].map((section) => (
+                <a
+                  key={section.id}
+                  href={`#${section.id}`}
+                  className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-xs text-white/72 transition hover:bg-white/12"
+                >
+                  {section.label}
+                </a>
+              ))}
+            </div>
+          </ShellCard>
+
+          <ShellCard id="security-section-posture" className="p-8">
             <div className="grid gap-5 lg:grid-cols-[0.9fr,1.1fr]">
               <div className="rounded-[26px] border border-white/10 bg-white/5 p-6">
                 <p className="text-sm uppercase tracking-[0.24em] text-white/45">Security posture score</p>
@@ -762,21 +815,25 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   <p className="mt-4 text-xs uppercase tracking-[0.16em] text-white/45">{securityScore.trend}</p>
                 ) : null}
               </div>
-              <div className="grid gap-3 md:grid-cols-2 text-sm text-white/75">
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">HTTPS coverage: {securityTechnical.transport.httpsCoverage}%</div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Redirected to HTTPS: {securityTechnical.transport.redirectedToHttpsCount}</div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Downgraded to HTTP: {securityTechnical.transport.downgradedToHttpCount}</div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Execution mode: {securityTechnical.transport.executionMode}
-                  {securityTechnical.transport.modeFallbackUsed ? " (fallback used)" : ""}
+              <div>
+                <p className="mb-3 text-sm text-white/52">How well the site protects visitors in transit</p>
+                <div className="grid gap-3 md:grid-cols-2 text-sm text-white/75">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">HTTPS coverage: {securityTechnical.transport.httpsCoverage}%</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Redirected to HTTPS: {securityTechnical.transport.redirectedToHttpsCount}</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Downgraded to HTTP: {securityTechnical.transport.downgradedToHttpCount}</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    Execution mode: {securityTechnical.transport.executionMode}
+                    {securityTechnical.transport.modeFallbackUsed ? " (fallback used)" : ""}
+                  </div>
                 </div>
               </div>
             </div>
           </ShellCard>
 
-          <div className="grid gap-5 lg:grid-cols-[1.05fr,0.95fr]">
+          <div id="security-section-headers" className="grid gap-5 lg:grid-cols-[1.05fr,0.95fr]">
             <ShellCard className="p-8">
               <h2 className="text-2xl font-semibold text-white">Header hardening coverage</h2>
+              <p className="mt-2 text-sm text-white/52">Missing headers let browsers make unsafe assumptions — increasing XSS, clickjacking, and data-leak risk for visitors</p>
               <div className="mt-6 space-y-4">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-white/45">Missing headers</p>
@@ -808,8 +865,9 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 </div>
               </div>
             </ShellCard>
-            <ShellCard className="p-8">
+            <ShellCard id="security-section-cookies" className="p-8">
               <h2 className="text-2xl font-semibold text-white">Cookies, links, and forms</h2>
+              <p className="mt-2 text-sm text-white/52">Unsecured cookies and insecure links expose session data and visitor information in transit</p>
               <div className="mt-6 grid gap-3 text-sm text-white/75">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   Cookies observed: {securityTechnical.cookies.totalSetCookie}
@@ -818,7 +876,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   Cookie flags · Secure {securityTechnical.cookies.secureRate}% · HttpOnly {securityTechnical.cookies.httpOnlyRate}% · SameSite {securityTechnical.cookies.sameSiteRate}%
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Unsafe target=_blank links: {securityTechnical.linksAndForms.unsafeTargetBlankCount}
+                  Unsafe new-tab links: {securityTechnical.linksAndForms.unsafeTargetBlankCount}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   Insecure HTTP links: {securityTechnical.linksAndForms.insecureLinkCount}
@@ -830,16 +888,16 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   Mixed-content assets: {securityTechnical.scriptSurface?.mixedContentCount ?? 0}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  External scripts without SRI: {securityTechnical.scriptSurface?.scriptsWithoutSriCount ?? 0}
+                  External scripts each a supply-chain dependency — without SRI: {securityTechnical.scriptSurface?.scriptsWithoutSriCount ?? 0} of {securityTechnical.scriptSurface?.externalScriptCount ?? 0}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  CORS risky pages: {securityTechnical.cors?.riskyPageCount ?? 0}
+                  Overly open cross-site access pages: {securityTechnical.cors?.riskyPageCount ?? 0}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   Cache-policy risk pages: {securityTechnical.cachePolicy?.riskyPageCount ?? 0}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Password-flow pages missing CSRF signal: {securityTechnical.authSurface?.passwordFlowMissingCsrfCount ?? 0}
+                  Sign-in pages missing CSRF signal: {securityTechnical.authSurface?.passwordFlowMissingCsrfCount ?? 0}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   HSTS preload-ready pages: {securityTechnical.hsts?.preloadReadyCount ?? 0}
@@ -865,10 +923,10 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </ShellCard>
           </div>
 
-          <ShellCard className="p-8">
+          <ShellCard id="security-section-actions" className="p-8">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold text-white">Security and technical actions</h2>
-              <p className="text-sm text-white/52">Hardening priorities and crawl diagnostics</p>
+              <h2 className="text-2xl font-semibold text-white">Recommended security actions</h2>
+              <p className="text-sm text-white/52">Prioritized by risk to visitors</p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {securityTechnical.recommendations.map((recommendation) => (
@@ -878,12 +936,17 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                       {getSeverityLabel(recommendation.impact)}
                     </div>
                     <h3 className="mt-4 text-xl font-medium text-white">{recommendation.title}</h3>
-                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to view hardening detail</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to view what to do</p>
                   </summary>
                   <p className="mt-4 text-sm leading-7 text-white/65">{recommendation.detail}</p>
                 </details>
               ))}
             </div>
+          </ShellCard>
+
+          <ShellCard id="security-section-crawl" className="p-8">
+            <h2 className="text-2xl font-semibold text-white">Crawl diagnostics</h2>
+            <p className="mt-2 text-sm text-white/52">How much of the site was reached during the scan</p>
             <div className="mt-6 grid gap-3 md:grid-cols-3 text-sm text-white/75">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                 Robots blocked: {securityTechnical.crawlDiagnostics.blockedByRobots}
@@ -905,6 +968,79 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               </div>
             ) : null}
           </ShellCard>
+        </div>
+      ) : (
+        <div id="report-panel-bugs" role="tabpanel" aria-labelledby="report-tab-bugs" className="space-y-8">
+          {report.bugsReliability ? (
+            <>
+              <ShellCard className="p-8">
+                <p className="text-sm uppercase tracking-[0.24em] text-white/45">Bugs & reliability summary</p>
+                <h2 className="mt-4 text-2xl font-semibold text-white">{report.bugsReliability.summary}</h2>
+                {report.bugsReliability.bugCount === 0 ? (
+                  <div className="mt-6 rounded-[22px] border border-[#7cf5d4]/25 bg-[#7cf5d4]/6 p-5 text-sm text-white/75">
+                    All scanned pages loaded successfully with no crawl errors detected.
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs uppercase tracking-[0.2em] ${
+                      report.bugsReliability.bugs.some((b) => b.severity === "high")
+                        ? "border-[#ffb39f]/30 bg-[#ffb39f]/8 text-[#ffb39f]"
+                        : "border-[#ffd08a]/30 bg-[#ffd08a]/8 text-[#ffd08a]"
+                    }`}>
+                      {report.bugsReliability.bugCount} issue{report.bugsReliability.bugCount === 1 ? "" : "s"} found
+                    </span>
+                  </div>
+                )}
+              </ShellCard>
+
+              {report.bugsReliability.bugs.length > 0 ? (
+                <ShellCard className="p-8">
+                  <h2 className="text-2xl font-semibold text-white">Page issues</h2>
+                  <p className="mt-2 text-sm text-white/52">Problems found during the crawl that visitors may also encounter</p>
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    {report.bugsReliability.bugs.map((bug, index) => (
+                      <details
+                        key={`${bug.page}-${index}`}
+                        className={`rounded-[24px] border bg-white/5 p-5 ${
+                          bug.severity === "high"
+                            ? "border-l-4 border-[#ffb39f]/25 border-l-[#ffb39f]"
+                            : bug.severity === "medium"
+                              ? "border-l-4 border-[#ffd08a]/25 border-l-[#ffd08a]"
+                              : "border-l-4 border-[#7cf5d4]/25 border-l-[#7cf5d4]"
+                        }`}
+                      >
+                        <summary className="cursor-pointer list-none">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
+                              {getSeverityLabel(bug.severity)}
+                            </span>
+                            <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/50">
+                              {bug.confidence}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 text-lg font-medium text-white">{bug.issue}</h3>
+                          <p className="mt-1 truncate text-xs text-white/40">{bug.page}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to see details and fix</p>
+                        </summary>
+                        <p className="mt-4 text-sm leading-7 text-white/65">{bug.detail}</p>
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-xs uppercase tracking-[0.2em] text-white/45">How to fix</p>
+                          <p className="mt-2 text-sm leading-7 text-white/72">{bug.remediation}</p>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </ShellCard>
+              ) : null}
+            </>
+          ) : (
+            <ShellCard className="p-8">
+              <p className="text-sm uppercase tracking-[0.24em] text-white/45">Bugs & reliability</p>
+              <p className="mt-4 text-sm leading-7 text-white/65">
+                Bug and reliability data is available for scans run with the latest analysis engine. Re-run your scan to see page-level issue detection.
+              </p>
+            </ShellCard>
+          )}
         </div>
       )}
     </div>
