@@ -2,6 +2,7 @@
 
 import { motion, type Transition } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 
 type KeyframeSnapshot = Record<string, string | number>;
 
@@ -46,10 +47,20 @@ export function BlurText({
   stepDuration = 0.35
 }: BlurTextProps) {
   const ref = useRef<HTMLParagraphElement>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [inView, setInView] = useState(false);
   const elements = animateBy === "words" ? text.split(" ") : text.split("");
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      setInView(true);
+    }
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      return;
+    }
     if (!ref.current) {
       return;
     }
@@ -67,7 +78,7 @@ export function BlurText({
     observer.observe(ref.current);
 
     return () => observer.disconnect();
-  }, [threshold, rootMargin]);
+  }, [prefersReducedMotion, threshold, rootMargin]);
 
   const defaultFrom = useMemo<KeyframeSnapshot>(
     () =>
@@ -96,17 +107,17 @@ export function BlurText({
       {elements.map((segment, index) => {
         const animateKeyframes = buildKeyframes(fromSnapshot, toSnapshots);
         const spanTransition: Transition = {
-          duration: totalDuration,
+          duration: prefersReducedMotion ? 0 : totalDuration,
           times,
-          delay: (index * delay) / 1000,
+          delay: prefersReducedMotion ? 0 : (index * delay) / 1000,
           ease: easing
         };
 
         return (
           <motion.span
             key={`${segment}-${index}`}
-            initial={fromSnapshot}
-            animate={inView ? animateKeyframes : fromSnapshot}
+            initial={prefersReducedMotion ? undefined : fromSnapshot}
+            animate={inView ? (prefersReducedMotion ? toSnapshots[toSnapshots.length - 1] : animateKeyframes) : fromSnapshot}
             transition={spanTransition}
             onAnimationComplete={index === elements.length - 1 ? onAnimationComplete : undefined}
             style={{ display: "inline-block", willChange: "transform, filter, opacity" }}

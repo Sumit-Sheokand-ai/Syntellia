@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import { toAbsoluteAppUrl } from "@/lib/base-path";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +23,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  const signInWithPassword = async (event: React.FormEvent) => {
+  const signInWithPassword = async (event: FormEvent) => {
     event.preventDefault();
     setIsPending(true);
     setError(null);
@@ -60,34 +62,34 @@ export default function LoginPage() {
 
   return (
     <div className="panel rounded-[30px] p-8">
-      <p className="text-sm uppercase tracking-[0.3em] text-white/45">Welcome back</p>
-      <h1 className="mt-4 text-3xl font-semibold text-white">Sign in to Syntellia</h1>
-      <p className="mt-3 text-sm text-white/62">Use email/password or continue with your preferred provider.</p>
+      <p className="text-sm uppercase tracking-[0.3em] text-white/45">{t("auth.welcomeBack")}</p>
+      <h1 className="mt-4 text-3xl font-semibold text-white">{t("auth.signInTitle")}</h1>
+      <p className="mt-3 text-sm text-white/62">{t("auth.signInSubtitle")}</p>
 
-      <form className="mt-8 space-y-4" onSubmit={signInWithPassword}>
-        <label htmlFor="login-email" className="sr-only">Email</label>
+      <form className="mt-8 space-y-4" onSubmit={signInWithPassword} aria-busy={isPending}>
+        <label htmlFor="login-email" className="sr-only">{t("auth.email")}</label>
         <input
           id="login-email"
           type="email"
           required
-          placeholder="Email"
+          placeholder={t("auth.email")}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
         />
-        <label htmlFor="login-password" className="sr-only">Password</label>
+        <label htmlFor="login-password" className="sr-only">{t("auth.password")}</label>
         <input
           id="login-password"
           type="password"
           required
-          placeholder="Password"
+          placeholder={t("auth.password")}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
         />
-        {error ? <p className="text-sm text-[#ffb39f]">{error}</p> : null}
+        {error ? <p className="text-sm text-[#ffb39f]" role="alert" aria-live="assertive">{error}</p> : null}
         <button type="submit" disabled={isPending} className="w-full rounded-full bg-white px-5 py-3 text-sm font-medium text-[#09101d] disabled:opacity-60">
-          {isPending ? "Signing in..." : "Sign in"}
+          {isPending ? t("auth.signingIn") : t("auth.signIn")}
         </button>
       </form>
 
@@ -98,7 +100,7 @@ export default function LoginPage() {
           onClick={() => signInWithOAuth("google")}
           className="rounded-full border border-white/12 bg-white/6 px-4 py-3 text-sm text-white disabled:opacity-60"
         >
-          Continue with Google
+          {t("auth.continueGoogle")}
         </button>
         <button
           type="button"
@@ -106,14 +108,14 @@ export default function LoginPage() {
           onClick={() => signInWithOAuth("github")}
           className="rounded-full border border-white/12 bg-white/6 px-4 py-3 text-sm text-white disabled:opacity-60"
         >
-          Continue with GitHub
+          {t("auth.continueGithub")}
         </button>
       </div>
 
       <p className="mt-6 text-sm text-white/62">
-        New here?{" "}
+        {t("auth.newHere")}{" "}
         <Link href={`/auth/signup?next=${encodeURIComponent(nextPath)}`} className="text-white underline underline-offset-4">
-          Create an account
+          {t("auth.createAccount")}
         </Link>
       </p>
     </div>

@@ -1,4 +1,6 @@
+"use client";
 import type { CSSProperties, ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 
 type StarBorderProps<T extends ElementType> = ComponentPropsWithoutRef<T> & {
   as?: T;
@@ -10,7 +12,7 @@ type StarBorderProps<T extends ElementType> = ComponentPropsWithoutRef<T> & {
   innerClassName?: string;
 };
 
-export function StarBorder<T extends ElementType = "button">({
+export function StarBorder<T extends ElementType = "div">({
   as,
   className = "",
   color = "white",
@@ -20,7 +22,8 @@ export function StarBorder<T extends ElementType = "button">({
   innerClassName = "",
   ...rest
 }: StarBorderProps<T>) {
-  const Component = as ?? "button";
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const Component = as ?? "div";
 
   return (
     <Component
@@ -33,11 +36,21 @@ export function StarBorder<T extends ElementType = "button">({
     >
       <span
         className="star-border-bottom"
-        style={{ background: `radial-gradient(circle, ${color}, transparent 10%)`, animationDuration: speed }}
+        style={{
+          background: `radial-gradient(circle, ${color}, transparent 10%)`,
+          animationDuration: prefersReducedMotion ? "0s" : speed,
+          animationName: prefersReducedMotion ? "none" : undefined,
+          opacity: prefersReducedMotion ? 0.22 : undefined
+        }}
       />
       <span
         className="star-border-top"
-        style={{ background: `radial-gradient(circle, ${color}, transparent 10%)`, animationDuration: speed }}
+        style={{
+          background: `radial-gradient(circle, ${color}, transparent 10%)`,
+          animationDuration: prefersReducedMotion ? "0s" : speed,
+          animationName: prefersReducedMotion ? "none" : undefined,
+          opacity: prefersReducedMotion ? 0.22 : undefined
+        }}
       />
       <span className={`star-border-content ${innerClassName}`}>{children}</span>
     </Component>

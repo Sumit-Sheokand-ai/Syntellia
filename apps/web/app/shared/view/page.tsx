@@ -35,11 +35,11 @@ function SharedReportContent() {
 
   if (error) {
     return (
-      <main className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
+      <main id="main-content" className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
         <div className="mx-auto max-w-6xl space-y-6">
           <ShellCard className="p-8">
             <p className="text-sm uppercase tracking-[0.3em] text-[#ffb39f]">Shared report unavailable</p>
-            <p className="mt-4 text-base leading-8 text-white/68">{error}</p>
+            <p className="mt-4 text-base leading-8 text-white/68" role="alert" aria-live="assertive">{error}</p>
             <Link href="/" className="mt-6 inline-flex rounded-full border border-white/12 px-5 py-3 text-sm text-white/86">
               Back to Syntellia
             </Link>
@@ -51,10 +51,10 @@ function SharedReportContent() {
 
   if (!scan || !scan.report) {
     return (
-      <main className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
+      <main id="main-content" className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
         <div className="mx-auto max-w-6xl space-y-6">
           <ShellCard className="p-8">
-            <p className="text-sm uppercase tracking-[0.3em] text-white/45">Loading shared report...</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-white/45" role="status" aria-live="polite">Loading shared report...</p>
             <p className="mt-4 text-base leading-8 text-white/68">Preparing the report for view.</p>
           </ShellCard>
         </div>
@@ -63,7 +63,7 @@ function SharedReportContent() {
   }
 
   return (
-    <main className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
+    <main id="main-content" className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
       <div className="mx-auto max-w-6xl space-y-6">
         <ShellCard className="p-6">
           <p className="text-sm uppercase tracking-[0.26em] text-white/45">Shared Syntellia report</p>
@@ -94,10 +94,10 @@ export default function SharedReportPage() {
   return (
     <Suspense
       fallback={(
-        <main className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
+        <main id="main-content" className="space-y-6 px-6 py-8 md:px-10 xl:px-14">
           <div className="mx-auto max-w-6xl space-y-6">
             <ShellCard className="p-8">
-              <p className="text-sm uppercase tracking-[0.3em] text-white/45">Loading shared report...</p>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/45" role="status" aria-live="polite">Loading shared report...</p>
               <p className="mt-4 text-base leading-8 text-white/68">Preparing the report for view.</p>
             </ShellCard>
           </div>

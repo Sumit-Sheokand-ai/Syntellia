@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import { ReportOverview } from "@/components/report/report-overview";
 import { ShellCard } from "@/components/ui/shell-card";
+import { formatDateTimeForLocale } from "@/lib/accessibility";
 import type { ScanRecord } from "@/lib/scan-types";
 import {
   createShareLinkViaApi,
@@ -15,7 +17,7 @@ type ScanReportClientProps = {
   initialScan: ScanRecord;
 };
 
-function ProgressView({ scan }: { scan: ScanRecord }) {
+function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
   const progressCopy =
     scan.status === "Queued"
       ? "The scan is queued and waiting to start."
@@ -28,6 +30,9 @@ function ProgressView({ scan }: { scan: ScanRecord }) {
 
   return (
     <div className="space-y-8">
+      <div className="sr-only" role="status" aria-live="polite">
+        {`Scan status update: ${scan.status}.`}
+      </div>
       <div className="grid gap-5 lg:grid-cols-[1.45fr,0.95fr]">
         <ShellCard className="p-8">
           <p className="text-sm uppercase tracking-[0.3em] text-white/45">Scan in progress</p>
@@ -51,7 +56,7 @@ function ProgressView({ scan }: { scan: ScanRecord }) {
         <ShellCard className="p-8">
           <p className="text-sm uppercase tracking-[0.3em] text-white/45">Current status</p>
           <div className="mt-6 space-y-3 text-sm text-white/72">
-            <div className="rounded-2xl border border-[#7cf5d4]/25 bg-[#7cf5d4]/8 px-4 py-3">Status: {scan.status}</div>
+            <div className="rounded-2xl border border-[#7cf5d4]/25 bg-[#7cf5d4]/8 px-4 py-3" role="status" aria-live="polite">Status: {scan.status}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan size: {scan.scanSize}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Main focus: {scan.focusArea}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Page limit: up to {scan.pageLimit}</div>
@@ -65,6 +70,7 @@ function ProgressView({ scan }: { scan: ScanRecord }) {
       <ShellCard className="p-8">
         <div className="text-sm uppercase tracking-[0.24em] text-white/45">Target page</div>
         <div className="mt-4 text-lg text-white/86">{scan.url}</div>
+        <div className="mt-3 text-xs text-white/52">Started: {formatDateTimeForLocale(scan.startedAt ?? scan.createdAt, locale)}</div>
       </ShellCard>
     </div>
   );
@@ -86,9 +92,11 @@ function FailureView({ scan }: { scan: ScanRecord }) {
 }
 
 export function ScanReportClient({ initialScan }: ScanReportClientProps) {
+  const { locale } = useI18n();
   const [scan, setScan] = useState(initialScan);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [shareNoticeTone, setShareNoticeTone] = useState<"success" | "error" | null>(null);
   const [isPreparingShare, setIsPreparingShare] = useState(false);
   const [isRevokingShare, setIsRevokingShare] = useState(false);
 
@@ -126,6 +134,7 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
     try {
       setIsPreparingShare(true);
       setShareNotice(null);
+      setShareNoticeTone(null);
 
       let sharePath = scan.shareToken
         ? `/shared/view?token=${encodeURIComponent(scan.shareToken)}`
@@ -150,8 +159,10 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareLink);
         setShareNotice("Share link copied to clipboard.");
+        setShareNoticeTone("success");
       } else {
         setShareNotice("Share link is ready.");
+        setShareNoticeTone("success");
       }
 
       void trackAnalyticsEvent("scan_share_link_created", {
@@ -160,6 +171,7 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
       });
     } catch (error) {
       setShareNotice(error instanceof Error ? error.message : "Unable to prepare share link.");
+      setShareNoticeTone("error");
     } finally {
       setIsPreparingShare(false);
     }
@@ -169,6 +181,7 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
     try {
       setIsRevokingShare(true);
       setShareNotice(null);
+      setShareNoticeTone(null);
       await revokeShareLinkViaApi(scan.id);
       setScan((current) => ({
         ...current,
@@ -178,23 +191,29 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
       }));
       setShareUrl(null);
       setShareNotice("Share link revoked.");
+      setShareNoticeTone("success");
       void trackAnalyticsEvent("scan_share_link_revoked", {
         scanId: scan.id,
         projectName: scan.projectName
       });
     } catch (error) {
       setShareNotice(error instanceof Error ? error.message : "Unable to revoke share link.");
+      setShareNoticeTone("error");
     } finally {
       setIsRevokingShare(false);
     }
   };
 
   if (scan.status === "Failed") {
-    return <FailureView scan={scan} />;
+    return (
+      <div role="alert" aria-live="assertive">
+        <FailureView scan={scan} />
+      </div>
+    );
   }
 
   if (scan.status !== "Completed" || !scan.report) {
-    return <ProgressView scan={scan} />;
+    return <ProgressView scan={scan} locale={locale} />;
   }
   return (
     <div className="space-y-6">
@@ -210,11 +229,17 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
             ) : null}
             {scan.shareTokenExpiresAt ? (
               <p className="mt-2 text-xs text-white/52">
-                Expires: {new Date(scan.shareTokenExpiresAt).toLocaleString()}
+                Expires: {formatDateTimeForLocale(scan.shareTokenExpiresAt, locale)}
               </p>
             ) : null}
             {shareNotice ? (
-              <p className="mt-3 text-sm text-[#7cf5d4]">{shareNotice}</p>
+              <p
+                className={`mt-3 text-sm ${shareNoticeTone === "error" ? "text-[#ffb39f]" : "text-[#7cf5d4]"}`}
+                role={shareNoticeTone === "error" ? "alert" : "status"}
+                aria-live={shareNoticeTone === "error" ? "assertive" : "polite"}
+              >
+                {shareNotice}
+              </p>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -223,6 +248,7 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
               className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={prepareShareLink}
               disabled={isPreparingShare}
+              aria-busy={isPreparingShare}
             >
               {isPreparingShare ? "Preparing link..." : shareUrl ? "Copy share link" : "Create share link"}
             </button>
@@ -232,6 +258,7 @@ export function ScanReportClient({ initialScan }: ScanReportClientProps) {
                 className="rounded-full border border-[#ffb39f]/30 bg-[#ffb39f]/10 px-5 py-3 text-sm text-[#ffd6cb] transition hover:bg-[#ffb39f]/16 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={revokeShareLink}
                 disabled={isRevokingShare}
+                aria-busy={isRevokingShare}
               >
                 {isRevokingShare ? "Revoking..." : "Revoke link"}
               </button>

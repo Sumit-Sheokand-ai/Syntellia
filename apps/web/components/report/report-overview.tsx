@@ -274,6 +274,22 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
       siteName: report.siteName
     });
   };
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      setActiveTab((current) => (current === "ui" ? "security" : "ui"));
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      setActiveTab("ui");
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      setActiveTab("security");
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -307,31 +323,39 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
         <div className="grid grid-cols-2 gap-2 rounded-[18px] border border-white/8 bg-white/5 p-2" role="tablist" aria-label="Report sections">
           <button
             type="button"
+            id="report-tab-ui"
             role="tab"
             aria-selected={activeTab === "ui"}
+            aria-controls="report-panel-ui"
+            tabIndex={activeTab === "ui" ? 0 : -1}
             className={`rounded-[14px] px-4 py-3 text-sm uppercase tracking-[0.22em] transition ${
               activeTab === "ui" ? "bg-white text-[#09101d]" : "bg-transparent text-white/72 hover:bg-white/10"
             }`}
             onClick={() => setActiveTab("ui")}
+            onKeyDown={handleTabKeyDown}
           >
-            Tab 1 · UI & Styling
+            UI & Styling
           </button>
           <button
             type="button"
+            id="report-tab-security"
             role="tab"
             aria-selected={activeTab === "security"}
+            aria-controls="report-panel-security"
+            tabIndex={activeTab === "security" ? 0 : -1}
             className={`rounded-[14px] px-4 py-3 text-sm uppercase tracking-[0.22em] transition ${
               activeTab === "security" ? "bg-white text-[#09101d]" : "bg-transparent text-white/72 hover:bg-white/10"
             }`}
             onClick={() => setActiveTab("security")}
+            onKeyDown={handleTabKeyDown}
           >
-            Tab 2 · Security & Technical
+            Security & Technical
           </button>
         </div>
       </ShellCard>
 
       {activeTab === "ui" ? (
-        <div className="space-y-8">
+        <div id="report-panel-ui" role="tabpanel" aria-labelledby="report-tab-ui" className="space-y-8">
           <ShellCard className="p-8">
             <p className="text-sm uppercase tracking-[0.24em] text-white/45">UI & styling summary</p>
             <p className="mt-4 text-base leading-8 text-white/72">{uiStyle.summary}</p>
@@ -458,7 +482,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           </ShellCard>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div id="report-panel-security" role="tabpanel" aria-labelledby="report-tab-security" className="space-y-8">
           <ShellCard className="p-8">
             <div className="grid gap-5 lg:grid-cols-[0.9fr,1.1fr]">
               <div className="rounded-[26px] border border-white/10 bg-white/5 p-6">

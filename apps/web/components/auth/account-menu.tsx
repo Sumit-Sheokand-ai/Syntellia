@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/i18n-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
 type AccountMenuProps = {
@@ -10,6 +11,7 @@ type AccountMenuProps = {
 
 export function AccountMenu({ email }: AccountMenuProps) {
   const router = useRouter();
+  const { t } = useI18n();
   const [isPending, setIsPending] = useState(false);
 
   const signOut = async () => {
@@ -29,7 +31,7 @@ export function AccountMenu({ email }: AccountMenuProps) {
         disabled={isPending}
         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10 disabled:opacity-60"
       >
-        {isPending ? "Signing out..." : "Sign out"}
+        {isPending ? t("auth.signingOut") : t("auth.signOut")}
       </button>
     </div>
   );

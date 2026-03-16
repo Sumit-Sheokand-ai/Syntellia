@@ -3,30 +3,36 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Layers3, LockKeyhole, Radar, ScrollText } from "lucide-react";
 import { ShellCard } from "@/components/ui/shell-card";
+import { useI18n } from "@/components/i18n-provider";
 import {
   getEntitlementSummaryViaApi,
   listScansViaApi,
   trackAnalyticsEvent
 } from "@/lib/scan-api-client";
+import type { MessageKey } from "@/lib/i18n";
 import type { EntitlementSummary, ScanRecord } from "@/lib/scan-types";
 
 const cards = [
   {
-    title: "Public or authenticated scans",
-    body: "Create scans for marketing sites, app surfaces, or session-protected pages with controlled access handling.",
+    titleKey: "dashboard.card.publicAuth.title",
+    bodyKey: "dashboard.card.publicAuth.body",
     icon: LockKeyhole
   },
   {
-    title: "Bounded crawl control",
-    body: "Limit analysis by page count, path depth, and crawl domain so reports stay precise and cost remains predictable.",
+    titleKey: "dashboard.card.crawlControl.title",
+    bodyKey: "dashboard.card.crawlControl.body",
     icon: Radar
   },
   {
-    title: "Saved structured reports",
-    body: "Store scan output as reusable design intelligence instead of one-off screenshots or notes.",
+    titleKey: "dashboard.card.savedReports.title",
+    bodyKey: "dashboard.card.savedReports.body",
     icon: ScrollText
   }
-];
+] as const satisfies ReadonlyArray<{
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
+  icon: typeof LockKeyhole;
+}>;
 
 type DashboardInsights = {
   inFlightCount: number;
@@ -97,6 +103,7 @@ function summarizeInsights(scans: ScanRecord[]): DashboardInsights {
 }
 
 export default function DashboardPage() {
+  const { t } = useI18n();
   const [entitlement, setEntitlement] = useState<EntitlementSummary | null>(null);
   const [insights, setInsights] = useState<DashboardInsights | null>(null);
 
@@ -122,41 +129,43 @@ export default function DashboardPage() {
       isActive = false;
     };
   }, []);
+
+  const planValue = entitlement?.planName ?? t("dashboard.plan.free");
   return (
-    <main className="space-y-8">
+    <main id="main-content" className="space-y-8">
       <section className="grid gap-5 lg:grid-cols-[1.15fr,0.85fr]">
         <ShellCard className="p-8">
-          <p className="text-sm uppercase tracking-[0.3em] text-white/45">Dashboard</p>
-          <h2 className="mt-4 max-w-3xl text-4xl font-semibold text-white">Start a scan in a few simple steps.</h2>
+          <p className="text-sm uppercase tracking-[0.3em] text-white/45">{t("dashboard.badge")}</p>
+          <h2 className="mt-4 max-w-3xl text-4xl font-semibold text-white">{t("dashboard.title")}</h2>
           <p className="mt-4 max-w-2xl text-base leading-8 text-white/66">
-            Paste a page link, choose how wide the review should be, and tell Syntellia what matters most. The report view is already designed to turn that into something easy to read.
+            {t("dashboard.subtitle")}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/app/scan/new" className="rounded-full bg-white px-5 py-3 text-sm font-medium text-[#09101d]">Start new scan</Link>
-            <Link href="/app/scan/history" className="rounded-full border border-white/10 px-5 py-3 text-sm font-medium text-white/85">View scan history</Link>
-            <Link href="/#workflow" className="rounded-full border border-white/10 px-5 py-3 text-sm font-medium text-white/85">See how it works</Link>
+            <Link href="/app/scan/new" className="rounded-full bg-white px-5 py-3 text-sm font-medium text-[#09101d]">{t("dashboard.cta.startScan")}</Link>
+            <Link href="/app/scan/history" className="rounded-full border border-white/10 px-5 py-3 text-sm font-medium text-white/85">{t("dashboard.cta.history")}</Link>
+            <Link href="/#workflow" className="rounded-full border border-white/10 px-5 py-3 text-sm font-medium text-white/85">{t("dashboard.cta.workflow")}</Link>
           </div>
         </ShellCard>
         <ShellCard className="p-8">
           <div className="flex items-center gap-3 text-white">
             <Layers3 className="h-5 w-5 text-[#7cf5d4]" />
-            <h3 className="text-2xl font-semibold">Workspace snapshot</h3>
+            <h3 className="text-2xl font-semibold">{t("dashboard.snapshot.title")}</h3>
           </div>
           <div className="mt-6 space-y-4 text-sm text-white/68">
             <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
-              Plan: {entitlement?.planName ?? "free"}
+              {t("dashboard.snapshot.plan", { value: planValue })}
             </div>
             <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
-              Remaining scans this month: {entitlement?.remainingScans ?? "—"}
+              {t("dashboard.snapshot.remainingScans", { value: entitlement?.remainingScans ?? "—" })}
             </div>
             <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
-              Scans currently in progress: {insights?.inFlightCount ?? "—"}
+              {t("dashboard.snapshot.inFlight", { value: insights?.inFlightCount ?? "—" })}
             </div>
             <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
-              Recent failures (7 days): {insights?.recentFailureCount ?? "—"}
+              {t("dashboard.snapshot.recentFailures", { value: insights?.recentFailureCount ?? "—" })}
             </div>
             <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
-              Regressions detected: {insights?.regressionCount ?? "—"}
+              {t("dashboard.snapshot.regressions", { value: insights?.regressionCount ?? "—" })}
             </div>
           </div>
         </ShellCard>
@@ -167,12 +176,12 @@ export default function DashboardPage() {
           const Icon = card.icon;
 
           return (
-            <ShellCard key={card.title} className="p-7">
+            <ShellCard key={card.titleKey} className="p-7">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/6">
                 <Icon className="h-6 w-6 text-[#6ca8ff]" />
               </div>
-              <h3 className="mt-6 text-2xl font-semibold text-white">{card.title}</h3>
-              <p className="mt-4 text-base leading-8 text-white/66">{card.body}</p>
+              <h3 className="mt-6 text-2xl font-semibold text-white">{t(card.titleKey)}</h3>
+              <p className="mt-4 text-base leading-8 text-white/66">{t(card.bodyKey)}</p>
             </ShellCard>
           );
         })}

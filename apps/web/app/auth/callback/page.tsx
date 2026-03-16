@@ -65,9 +65,9 @@ export default function AuthCallbackPage() {
     <div className="panel rounded-[30px] p-8">
       <p className="text-sm uppercase tracking-[0.3em] text-white/45">Completing sign in</p>
       {error ? (
-        <p className="mt-4 text-sm text-[#ffb39f]">{error}</p>
+        <p className="mt-4 text-sm text-[#ffb39f]" role="alert" aria-live="assertive">{error}</p>
       ) : (
-        <p className="mt-4 text-sm text-white/62">Finalizing your session and redirecting...</p>
+        <p className="mt-4 text-sm text-white/62" role="status" aria-live="polite">Finalizing your session and redirecting...</p>
       )}
     </div>
   );

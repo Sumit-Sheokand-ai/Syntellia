@@ -32,7 +32,7 @@ const workflow = [
 
 export default function HomePage() {
   return (
-    <main className="relative overflow-hidden px-6 pb-24 pt-8 text-white md:px-10 xl:px-14">
+    <main id="main-content" className="relative overflow-hidden px-6 pb-24 pt-8 text-white md:px-10 xl:px-14">
       <div className="mx-auto max-w-7xl space-y-24">
         <header className="flex items-center justify-between rounded-full border border-white/10 bg-white/5 px-5 py-3 backdrop-blur-xl">
           <div>

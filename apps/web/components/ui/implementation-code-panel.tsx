@@ -14,8 +14,10 @@ export function ImplementationCodePanel({
   onToggle,
   onCopy
 }: ImplementationCodePanelProps) {
+  const codeRegionId = `implementation-code-${snippet.id}`;
   const [expanded, setExpanded] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const copyNotice = copyState === "copied" ? "Code copied to clipboard." : copyState === "failed" ? "Unable to copy code." : "";
 
   useEffect(() => {
     if (copyState === "idle") return;
@@ -59,6 +61,7 @@ export function ImplementationCodePanel({
             onClick={handleToggle}
             className="rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-xs uppercase tracking-[0.12em] text-white/85 transition hover:bg-white/[0.12]"
             aria-expanded={expanded}
+            aria-controls={codeRegionId}
           >
             {expanded ? "Hide code" : "View code"}
           </button>
@@ -69,10 +72,16 @@ export function ImplementationCodePanel({
           >
             {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy code"}
           </button>
+          <span className="sr-only" role="status" aria-live="polite">
+            {copyNotice}
+          </span>
         </div>
       </div>
       {expanded ? (
-        <div className="mt-4 overflow-x-auto rounded-[18px] border border-white/10 bg-[#050816] px-4 py-4">
+        <div
+          id={codeRegionId}
+          className="mt-4 overflow-x-auto rounded-[18px] border border-white/10 bg-[#050816] px-4 py-4"
+        >
           <pre className="text-xs leading-6 text-[#dfe8ff]">
             <code>{snippet.code}</code>
           </pre>

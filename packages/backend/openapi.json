@@ -3,7 +3,7 @@
   "info": {
     "title": "Syntellia API",
     "version": "1.0.0",
-    "description": "Authenticated scan lifecycle API for creating, listing, and retrieving scan reports."
+    "description": "Authenticated scan lifecycle API for creating, listing, and retrieving scan reports. The same route surface is available under /api and /api/v1."
   },
   "servers": [
     {
@@ -242,6 +242,66 @@
           "500": { "$ref": "#/components/responses/ApiError" }
         }
       }
+    },
+    "/api/billing/entitlements": {
+      "get": {
+        "tags": ["scans"],
+        "summary": "Fetch entitlement summary for the authenticated user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Entitlement summary fetched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlement": { "$ref": "#/components/schemas/EntitlementSummary" }
+                  },
+                  "required": ["entitlement"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/AuthError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/analytics/events": {
+      "post": {
+        "tags": ["scans"],
+        "summary": "Record analytics event (supports optional auth)",
+        "security": [{ "bearerAuth": [] }, {}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AnalyticsEventRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Analytics event stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" }
+                  },
+                  "required": ["ok"]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ApiError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" },
+          "500": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
     }
   },
   "components": {
@@ -400,6 +460,31 @@
           "expiresAt": { "type": ["string", "null"], "format": "date-time" }
         },
         "required": ["shareToken", "sharePath", "expiresAt"]
+      },
+      "EntitlementSummary": {
+        "type": "object",
+        "properties": {
+          "planName": { "type": "string" },
+          "monthlyScanLimit": { "type": "integer", "minimum": 1 },
+          "monthlyScansUsed": { "type": "integer", "minimum": 0 },
+          "remainingScans": { "type": "integer", "minimum": 0 },
+          "periodStart": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "planName",
+          "monthlyScanLimit",
+          "monthlyScansUsed",
+          "remainingScans",
+          "periodStart"
+        ]
+      },
+      "AnalyticsEventRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "props": { "type": "object", "additionalProperties": true }
+        },
+        "required": ["name"]
       },
       "ErrorResponse": {
         "type": "object",

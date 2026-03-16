@@ -48,6 +48,11 @@ a {
   text-decoration: none;
 }
 
+:where(a, button, input, select, textarea, summary, [role="button"], [role="tab"]):focus-visible {
+  outline: 2px solid #7cf5d4;
+  outline-offset: 3px;
+}
+
 .panel {
   background: linear-gradient(180deg, rgba(18, 24, 52, 0.88), rgba(10, 14, 33, 0.76));
   border: 1px solid var(--border);
@@ -140,5 +145,25 @@ a {
   position: relative;
   z-index: 1;
   border-radius: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .star-border-bottom,
+  .star-border-top {
+    animation: none !important;
+    opacity: 0.22;
+  }
 }
 

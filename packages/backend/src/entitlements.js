@@ -131,9 +131,61 @@ async function getEntitlementSummary(userId) {
     periodStart: entitlement.period_start
   };
 }
+async function getEntitlementOverview({ limitUsers = 2000 } = {}) {
+  const supabase = getSupabaseAdminClient();
+  const normalizedLimit = Number.isFinite(limitUsers)
+    ? Math.max(1, Math.min(10_000, Math.floor(limitUsers)))
+    : 2000;
+
+  const { data, error } = await supabase
+    .from("user_entitlements")
+    .select("user_id, plan_name, monthly_scan_limit, monthly_scans_used, period_start, updated_at")
+    .order("updated_at", { ascending: false })
+    .limit(normalizedLimit);
+
+  if (error) throw new Error(`Unable to list entitlement overview: ${error.message}`);
+
+  const rows = data ?? [];
+  const byPlan = new Map();
+
+  for (const row of rows) {
+    const planName = row.plan_name ?? DEFAULT_PLAN.plan_name;
+    const limit = Number(row.monthly_scan_limit ?? DEFAULT_PLAN.monthly_scan_limit);
+    const used = Number(row.monthly_scans_used ?? 0);
+    const current = byPlan.get(planName) ?? {
+      planName,
+      userCount: 0,
+      totalMonthlyScanLimit: 0,
+      totalMonthlyScansUsed: 0
+    };
+
+    current.userCount += 1;
+    current.totalMonthlyScanLimit += Number.isFinite(limit) ? limit : 0;
+    current.totalMonthlyScansUsed += Number.isFinite(used) ? used : 0;
+    byPlan.set(planName, current);
+  }
+
+  const plans = [...byPlan.values()].map((plan) => {
+    const remaining = Math.max(0, plan.totalMonthlyScanLimit - plan.totalMonthlyScansUsed);
+    const utilizationPct = plan.totalMonthlyScanLimit > 0
+      ? Number(((plan.totalMonthlyScansUsed / plan.totalMonthlyScanLimit) * 100).toFixed(2))
+      : 0;
+    return {
+      ...plan,
+      remainingScans: remaining,
+      utilizationPct
+    };
+  });
+
+  return {
+    totalUsers: rows.length,
+    plans
+  };
+}
 
 module.exports = {
   EntitlementError,
   consumeScanCredit,
+  getEntitlementOverview,
   getEntitlementSummary
 };

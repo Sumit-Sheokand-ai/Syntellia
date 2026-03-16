@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 
 type ClickSparkProps = {
   sparkColor?: string;
@@ -30,11 +31,15 @@ export function ClickSpark({
   extraScale = 1,
   children
 }: ClickSparkProps) {
+  const prefersReducedMotion = usePrefersReducedMotion();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sparksRef = useRef<Spark[]>([]);
   const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      return;
+    }
     const canvas = canvasRef.current;
 
     if (!canvas) {
@@ -71,7 +76,7 @@ export function ClickSpark({
       observer.disconnect();
       clearTimeout(resizeTimeout);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   const easeFunc = useCallback(
     (value: number) => {
@@ -146,9 +151,12 @@ export function ClickSpark({
     animationId = requestAnimationFrame(draw);
 
     return () => cancelAnimationFrame(animationId);
-  }, [duration, easeFunc, extraScale, sparkColor, sparkRadius, sparkSize]);
+  }, [duration, easeFunc, extraScale, prefersReducedMotion, sparkColor, sparkRadius, sparkSize]);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion) {
+      return;
+    }
     const canvas = canvasRef.current;
 
     if (!canvas) {
