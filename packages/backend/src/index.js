@@ -28,6 +28,12 @@ const apiTelemetryExporter = createTelemetryExporter({
 });
 const OPERATIONS_ROLES = ["super_admin", "admin", "ops", "security"];
 
+function isMissingSupabaseServiceCredentialsError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("Missing Supabase service credentials")
+    || message.includes("SUPABASE_SERVICE_ROLE_KEY");
+}
+
 function sanitizePathForLogs(path) {
   if (!path) return path;
   if (path.startsWith("/api/shared/")) {
@@ -71,6 +77,13 @@ async function getQueueStatusSnapshot() {
       source: "supabase"
     };
   } catch (error) {
+    if (isMissingSupabaseServiceCredentialsError(error)) {
+      return {
+        ...queue,
+        source: "degraded-no-admin-credentials"
+      };
+    }
+
     queue = {
       ...queue,
       error: error instanceof Error ? error.message : String(error)
@@ -153,6 +166,16 @@ app.get("/readyz", async (_req, res) => {
     if (error) throw error;
     return res.json({ ok: true, service: "syntellia-backend", ts: new Date().toISOString() });
   } catch (error) {
+    if (isMissingSupabaseServiceCredentialsError(error)) {
+      return res.json({
+        ok: true,
+        degraded: true,
+        service: "syntellia-backend",
+        code: "DEPENDENCY_DEGRADED_NO_ADMIN_CREDENTIALS",
+        ts: new Date().toISOString()
+      });
+    }
+
     return res.status(503).json({
       ok: false,
       service: "syntellia-backend",

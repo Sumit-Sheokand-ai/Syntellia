@@ -28,6 +28,12 @@ const { listRecentAnalyticsEvents, recordAnalyticsEvent } = require("./analytics
 const scanRouter = Router();
 const ADMIN_ROLES = ["super_admin", "admin", "ops", "security", "billing_admin"];
 
+function isMissingSupabaseServiceCredentialsError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("Missing Supabase service credentials")
+    || message.includes("SUPABASE_SERVICE_ROLE_KEY");
+}
+
 function sendApiError(res, req, status, code, message) {
   return res.status(status).json({
     error: message,
@@ -98,10 +104,23 @@ scanRouter.post("/scans", requireAuth, enforceUserRateLimit, async (req, res) =>
   try {
     await consumeScanCredit(req.user.id);
   } catch (error) {
-    if (error instanceof EntitlementError) {
+    if (isMissingSupabaseServiceCredentialsError(error)) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          service: "syntellia-backend",
+          event: "entitlement_check_degraded",
+          userId: req.user.id,
+          message: error instanceof Error ? error.message : String(error),
+          requestId: req.requestId,
+          traceId: req.traceId
+        })
+      );
+    } else if (error instanceof EntitlementError) {
       return sendApiError(res, req, error.status, error.code, error.message);
+    } else {
+      return sendApiError(res, req, 500, "ENTITLEMENT_CHECK_FAILED", error.message);
     }
-    return sendApiError(res, req, 500, "ENTITLEMENT_CHECK_FAILED", error.message);
   }
 
   try {
@@ -223,6 +242,19 @@ scanRouter.get("/billing/entitlements", requireAuth, enforceUserRateLimit, async
     const entitlement = await getEntitlementSummary(req.user.id);
     res.json({ entitlement });
   } catch (error) {
+    if (isMissingSupabaseServiceCredentialsError(error)) {
+      return res.json({
+        entitlement: {
+          planName: "free",
+          monthlyScanLimit: null,
+          monthlyScansUsed: null,
+          remainingScans: null,
+          periodStart: null,
+          degraded: true
+        }
+      });
+    }
+
     sendApiError(res, req, 500, "GET_ENTITLEMENT_FAILED", error.message);
   }
 });
@@ -321,6 +353,14 @@ scanRouter.post("/analytics/events", resolveOptionalAuth, enforceUserRateLimit, 
 
     res.status(201).json({ ok: true });
   } catch (error) {
+    if (isMissingSupabaseServiceCredentialsError(error)) {
+      return res.status(202).json({
+        ok: true,
+        degraded: true,
+        code: "ANALYTICS_STORE_DEGRADED"
+      });
+    }
+
     sendApiError(res, req, 500, "ANALYTICS_EVENT_FAILED", error.message);
   }
 });

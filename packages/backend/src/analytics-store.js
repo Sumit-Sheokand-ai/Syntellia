@@ -53,4 +53,3 @@ async function listRecentAnalyticsEvents({ limit = 50, eventName = "", userId = 
 }
 
 module.exports = { listRecentAnalyticsEvents, recordAnalyticsEvent };
-module.exports = { recordAnalyticsEvent };
