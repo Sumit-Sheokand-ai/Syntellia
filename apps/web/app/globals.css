@@ -30,7 +30,7 @@ body {
     radial-gradient(ellipse 60% 40% at 15% 55%, rgba(20, 50, 130, 0.09), transparent),
     linear-gradient(168deg, #040410 0%, #07071c 48%, #060611 100%);
   color: var(--foreground);
-  font-family: var(--font-inter), "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans), "Segoe UI", system-ui, sans-serif;
 }
 
 /* Refined grid — barely visible, purposeful */

@@ -49,6 +49,32 @@ function getImpactStyle(impact: "high" | "medium" | "low") {
   return "border-l-4 border-l-[#7cf5d4]";
 }
 
+function SourceSnippetButton({ snippet }: { snippet?: string }) {
+  const [open, setOpen] = useState(false);
+  if (!snippet) return null;
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label="View source snippet"
+        title="View source snippet"
+        className="absolute right-3 top-3 z-10 rounded-full border border-white/12 bg-white/6 px-2.5 py-1 font-mono text-[10px] text-white/45 transition hover:bg-white/12 hover:text-white/75"
+        onClick={(e) => { e.preventDefault(); setOpen((v) => !v); }}
+      >
+        {"</>"}
+      </button>
+      {open ? (
+        <div className="mt-4 overflow-x-auto rounded-xl border border-white/10 bg-black/40 p-3">
+          <pre className="whitespace-pre-wrap break-all text-[11px] leading-5 text-[#7cf5d4]/70">
+            <code>{snippet}</code>
+          </pre>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function createCssVarSegment(value: string, index: number) {
   const normalized = value
     .toLowerCase()
@@ -335,8 +361,8 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
     [uiStyle]
   );
 
-  const uiScores = report.scores.filter((score) => score.label !== "Security posture");
-  const securityScore = report.scores.find((score) => score.label === "Security posture");
+  const uiScores = report.scores.filter((score) => score.label !== "How safe your site is");
+  const securityScore = report.scores.find((score) => score.label === "How safe your site is");
   const uiSections = [
     { id: "report-section-executive", label: "Executive" },
     { id: "report-section-roadmap", label: "Roadmap" },
@@ -415,7 +441,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                     URL.revokeObjectURL(url);
                   }}
                 >
-                  Export JSON
+                  Download raw data
                 </button>
                 <button
                   type="button"
@@ -433,7 +459,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           <div className="mt-6 space-y-3 text-sm text-white/72">
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Status: {scanMeta?.status ?? "Created"}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Project: {scanMeta?.projectName ?? "General"}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Analysis mode: Comprehensive</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan type: Full check</div>
             {report.coverageScore ? (
               <div className={`rounded-2xl border px-4 py-3 ${
                 report.coverageScore.pagesScanned >= report.coverageScore.pagesAttempted && report.coverageScore.blockedByRobots === 0
@@ -443,7 +469,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 {report.coverageScore.pagesScanned}/{report.coverageScore.pagesAttempted} pages analyzed · {report.coverageScore.label}
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Coverage target: up to {scanMeta?.pageLimit ?? 10} pages</div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Checking up to {scanMeta?.pageLimit ?? 10} pages</div>
             )}
           </div>
         </ShellCard>
@@ -498,7 +524,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/40">Performance</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
-              <div className="text-[11px] text-white/40">Avg fetch time</div>
+              <div className="text-[11px] text-white/40">Avg page load time</div>
               <div className={`mt-1.5 text-lg font-semibold ${
                 report.performanceSummary.avgFetchMs < 500
                   ? "text-[#2dd4bf]"
@@ -527,14 +553,14 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               <div className="mt-1 text-[10px] text-white/35 truncate">{report.performanceSummary.slowestPageUrl}</div>
             </div>
             <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
-              <div className="text-[11px] text-white/40">Est. resources</div>
+              <div className="text-[11px] text-white/40">Files loaded</div>
               <div className="mt-1.5 text-lg font-semibold text-white/80">
                 {report.performanceSummary.totalResourcesEstimate}
               </div>
               <div className="mt-1 text-[10px] text-white/35">scripts + images</div>
             </div>
             <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
-              <div className="text-[11px] text-white/40">Speed rating</div>
+              <div className="text-[11px] text-white/40">Load speed</div>
               <div className={`mt-1.5 text-sm font-medium ${
                 report.performanceSummary.avgFetchMs < 500
                   ? "text-[#2dd4bf]"
@@ -622,11 +648,11 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
           <div id="report-section-executive" className="grid gap-5 lg:grid-cols-[1.15fr,0.85fr]">
             <ShellCard className="p-8">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/45">Executive snapshot</p>
+              <p className="text-sm uppercase tracking-[0.24em] text-white/55">Quick summary</p>
               <h2 className="mt-4 text-2xl font-semibold text-white">{executiveSummary.headline}</h2>
               <div className="mt-6 grid gap-4 md:grid-cols-3 text-sm text-white/72">
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Highlights</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/55">What's going well</p>
                   <ul className="mt-3 space-y-2">
                     {executiveSummary.highlights.map((item) => (
                       <li key={item} className="text-white/78">{item}</li>
@@ -634,7 +660,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   </ul>
                 </div>
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Watch-outs</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/55">Things to fix</p>
                   <ul className="mt-3 space-y-2">
                     {executiveSummary.risks.map((item) => (
                       <li key={item} className="text-white/78">{item}</li>
@@ -642,7 +668,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   </ul>
                 </div>
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Best opportunities</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/55">Biggest improvements</p>
                   <ul className="mt-3 space-y-2">
                     {executiveSummary.opportunities.map((item) => (
                       <li key={item} className="text-white/78">{item}</li>
@@ -652,22 +678,22 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               </div>
             </ShellCard>
             <ShellCard className="p-8">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/45">Opportunity map</p>
+              <p className="text-sm uppercase tracking-[0.24em] text-white/55">Where to improve</p>
               <div className="mt-6 space-y-4 text-sm text-white/75">
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-white/45">Quick wins</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/55">Easy wins — do these first</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {opportunityMap.quickWins.map(sectionChip)}
                   </div>
                 </div>
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-white/45">Medium-term lifts</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/55">Worth doing next</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {opportunityMap.mediumTerm.map(sectionChip)}
                   </div>
                 </div>
                 <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-white/45">Big bets</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/55">Bigger changes for bigger results</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {opportunityMap.bigBets.map(sectionChip)}
                   </div>
@@ -680,9 +706,9 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-white/45">What to do first</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">A focused next-step roadmap</h2>
+                <h2 className="mt-3 text-2xl font-semibold text-white">Your step-by-step action plan</h2>
               </div>
-              <p className="text-sm text-white/52">Top 3 actions</p>
+              <p className="text-sm text-white/52">The 3 most important things to do</p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               {prioritizedActions.slice(0, 3).map((action, index) => (
@@ -710,8 +736,8 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
           <ShellCard id="report-section-scores" className="p-8">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold text-white">Design executive summary</h2>
-              <p className="text-sm text-white/52">Clarity, trust, action, and accessibility at a glance</p>
+              <h2 className="text-2xl font-semibold text-white">Your website scores</h2>
+              <p className="text-sm text-white/52">How your site performs across four key areas</p>
             </div>
             <div className="mt-6 grid gap-4 xl:grid-cols-4">
               {uiScores.map((score) => (
@@ -732,8 +758,8 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
           <ShellCard id="report-section-matrix" className="p-8">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold text-white">Impact matrix</h2>
-              <p className="text-sm text-white/52">Prioritize by business impact and delivery effort</p>
+              <h2 className="text-2xl font-semibold text-white">Effort vs impact overview</h2>
+              <p className="text-sm text-white/52">What gives the most results for the least work</p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {[
@@ -770,45 +796,45 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
           <ShellCard id="report-section-signals" className="p-8">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold text-white">Trust and friction signals</h2>
-              <p className="text-sm text-white/52">Customer reassurance + conversion drag</p>
+              <h2 className="text-2xl font-semibold text-white">What builds trust and what slows visitors down</h2>
+              <p className="text-sm text-white/52">What reassures visitors and what makes them hesitate</p>
             </div>
             <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
               <div className="grid gap-3 text-sm text-white/75">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Contact visibility: {trustCoverage.hasContactDetailsRate}% of pages
+                  Pages showing contact details: {trustCoverage.hasContactDetailsRate}%
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Testimonials presence: {trustCoverage.hasTestimonialsRate}% of pages
+                  Pages showing customer reviews: {trustCoverage.hasTestimonialsRate}%
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  FAQ coverage: {trustCoverage.hasFaqRate}% of pages
+                  Pages with a FAQ section: {trustCoverage.hasFaqRate}%
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Policy visibility: {trustCoverage.hasPolicyPagesRate}% of pages
+                  Pages showing privacy or terms: {trustCoverage.hasPolicyPagesRate}%
                 </div>
               </div>
               <div className="grid gap-3 text-sm text-white/75">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Long paragraphs: {readabilitySignals.longParagraphCount}
+                  Paragraphs too long to read easily: {readabilitySignals.longParagraphCount}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Avg words per sentence: {readabilitySignals.avgWordsPerSentence}
+                  Average sentence length: {readabilitySignals.avgWordsPerSentence} words
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Heading jumps: {headingJumpCount}
+                  Headings in wrong order: {headingJumpCount}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Complex forms: {complexForms}
+                  Forms with too many fields: {complexForms}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Pages without clear CTA: {conversionFriction.pagesWithoutClearCta}
+                  Pages with no clear next step: {conversionFriction.pagesWithoutClearCta}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Pages with long copy friction: {conversionFriction.pagesWithLongCopy}
+                  Pages with too much text to read: {conversionFriction.pagesWithLongCopy}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Trust-weak pages: {conversionFriction.trustWeakPages}
+                  Pages that feel untrustworthy: {conversionFriction.trustWeakPages}
                 </div>
               </div>
             </div>
@@ -837,7 +863,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-white/45">Developer implementation snippets</p>
+                  <p className="text-sm uppercase tracking-[0.24em] text-white/45">Code ready to copy and paste</p>
                   <div className="mt-4 space-y-3">
                     {implementationSnippets.map((snippet) => (
                       <ImplementationCodePanel
@@ -852,36 +878,36 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               </div>
             </ShellCard>
             <ShellCard className="p-8">
-              <h2 className="text-2xl font-semibold text-white">Content and interaction quality</h2>
+              <h2 className="text-2xl font-semibold text-white">What's on your page</h2>
               <div className="mt-6 grid gap-3 text-sm text-white/75">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Headings detected: {uiStyle.contentClarity.headingCount}
+                  Headings found: {uiStyle.contentClarity.headingCount}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Avg paragraph words: {uiStyle.contentClarity.avgParagraphWords}
+                  Average paragraph length: {uiStyle.contentClarity.avgParagraphWords} words
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Long paragraph count: {uiStyle.contentClarity.longParagraphCount}
+                  Paragraphs too long to read easily: {uiStyle.contentClarity.longParagraphCount}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  CTA labels: {uiStyle.interactionSignals.ctaLabels.length}
+                  Buttons and links found: {uiStyle.interactionSignals.ctaLabels.length}
                 </div>
               </div>
               <div className="mt-6 space-y-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Top headings / page titles</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Page headings</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(uiStyle.contentClarity.headingExamples.length
                       ? uiStyle.contentClarity.headingExamples
-                      : ["No headings extracted"]).slice(0, 10).map(sectionChip)}
+                      : ["No headings found"]).slice(0, 10).map(sectionChip)}
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Interaction cues</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Buttons and links</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(uiStyle.interactionSignals.ctaLabels.length
                       ? uiStyle.interactionSignals.ctaLabels
-                      : ["No CTA labels extracted"]).slice(0, 10).map(sectionChip)}
+                      : ["No buttons or links found"]).slice(0, 10).map(sectionChip)}
                   </div>
                 </div>
               </div>
@@ -890,12 +916,13 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
           <ShellCard id="report-section-improvements" className="p-8">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold text-white">UI-first improvements</h2>
-              <p className="text-sm text-white/52">Prioritized by customer-facing impact</p>
+              <h2 className="text-2xl font-semibold text-white">Suggested improvements</h2>
+              <p className="text-sm text-white/52">Most impactful changes first</p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {prioritizedActions.map((action) => (
-                <details key={action.title} className={`rounded-[24px] border border-white/10 bg-white/5 p-5 ${getImpactStyle(action.impact)}`}>
+                <details key={action.title} className={`relative rounded-[24px] border border-white/10 bg-white/5 p-5 ${getImpactStyle(action.impact)}`}>
+                  <SourceSnippetButton snippet={action.sourceSnippet} />
                   <summary className="cursor-pointer list-none">
                     <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
                       {getImpactLabel(action.impact)} · {action.effort} effort
@@ -904,7 +931,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                     <p className="mt-2 text-xs uppercase tracking-[0.16em] text-white/45">
                       Confidence {Math.round(action.confidence * 100)}%
                     </p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to view implementation detail</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Expand for implementation detail</p>
                   </summary>
                   <p className="mt-4 text-sm leading-7 text-white/65">{action.detail}</p>
                 </details>
@@ -918,11 +945,11 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs uppercase tracking-[0.2em] text-white/45">Jump to</span>
               {[
-                { id: "security-section-posture", label: "Posture score" },
-                { id: "security-section-headers", label: "Header hardening" },
-                { id: "security-section-cookies", label: "Cookies & links" },
-                { id: "security-section-actions", label: "Recommended actions" },
-                { id: "security-section-crawl", label: "Crawl diagnostics" }
+                { id: "security-section-posture", label: "Safety score" },
+                { id: "security-section-headers", label: "Browser safety settings" },
+                { id: "security-section-cookies", label: "Files, links & forms" },
+                { id: "security-section-actions", label: "What to fix" },
+                { id: "security-section-crawl", label: "Scan coverage" }
               ].map((section) => (
                 <a
                   key={section.id}
@@ -938,7 +965,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           <ShellCard id="security-section-posture" className="p-8">
             <div className="grid gap-5 lg:grid-cols-[0.9fr,1.1fr]">
               <div className="rounded-[26px] border border-white/10 bg-white/5 p-6">
-                <p className="text-sm uppercase tracking-[0.24em] text-white/45">Security posture score</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-white/55">How safe your site is for visitors</p>
                 <p className="mt-4 text-6xl font-semibold text-white">{securityTechnical.postureScore}/100</p>
                 <p className="mt-4 text-sm leading-7 text-white/65">{securityTechnical.summary}</p>
                 {securityScore ? (
@@ -946,27 +973,36 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 ) : null}
               </div>
               <div>
-                <p className="mb-3 text-sm text-white/52">How well the site protects visitors in transit</p>
-                <div className="grid gap-3 md:grid-cols-2 text-sm text-white/75">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">HTTPS coverage: {securityTechnical.transport.httpsCoverage}%</div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Redirected to HTTPS: {securityTechnical.transport.redirectedToHttpsCount}</div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Downgraded to HTTP: {securityTechnical.transport.downgradedToHttpCount}</div>
+                <p className="mb-3 text-sm text-white/52">How well your website guards people while they browse</p>
+                <dl className="grid gap-3 md:grid-cols-2 text-sm">
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                    Execution mode: {securityTechnical.transport.executionMode}
-                    {securityTechnical.transport.modeFallbackUsed ? " (fallback used)" : ""}
+                    <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages using a secure connection</dt>
+                    <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.transport.httpsCoverage}%</dd>
                   </div>
-                </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages that switch to secure automatically</dt>
+                    <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.transport.redirectedToHttpsCount}</dd>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages that lost their secure connection</dt>
+                    <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.transport.downgradedToHttpCount}</dd>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">How we checked</dt>
+                    <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.transport.executionMode}{securityTechnical.transport.modeFallbackUsed ? " (fallback used)" : ""}</dd>
+                  </div>
+                </dl>
               </div>
             </div>
           </ShellCard>
 
           <div id="security-section-headers" className="grid gap-5 lg:grid-cols-[1.05fr,0.95fr]">
             <ShellCard className="p-8">
-              <h2 className="text-2xl font-semibold text-white">Header hardening coverage</h2>
-              <p className="mt-2 text-sm text-white/52">Missing headers let browsers make unsafe assumptions — increasing XSS, clickjacking, and data-leak risk for visitors</p>
+              <h2 className="text-2xl font-semibold text-white">Browser safety settings</h2>
+              <p className="mt-2 text-sm text-white/52">When these settings are missing, browsers can't protect your visitors properly — leaving them open to attacks and data theft</p>
               <div className="mt-6 space-y-4">
                 <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-white/45">Missing headers</p>
+                  <p className="text-sm uppercase tracking-[0.24em] text-white/55">Missing safety settings</p>
                   <div className="mt-3 space-y-2">
                     {(securityTechnical.headers.missing.length
                       ? securityTechnical.headers.missing
@@ -980,7 +1016,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-white/45">Weak header values</p>
+                  <p className="text-sm uppercase tracking-[0.24em] text-white/55">Settings that are too weak to protect</p>
                   <div className="mt-3 space-y-2">
                     {(securityTechnical.headers.weak.length
                       ? securityTechnical.headers.weak
@@ -996,46 +1032,57 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               </div>
             </ShellCard>
             <ShellCard id="security-section-cookies" className="p-8">
-              <h2 className="text-2xl font-semibold text-white">Cookies, links, and forms</h2>
-              <p className="mt-2 text-sm text-white/52">Unsecured cookies and insecure links expose session data and visitor information in transit</p>
-              <div className="mt-6 grid gap-3 text-sm text-white/75">
+              <h2 className="text-2xl font-semibold text-white">Visitor files, links, and contact forms</h2>
+              <p className="mt-2 text-sm text-white/52">Small files saved on visitors' devices, links, and forms — if not protected, personal data can be stolen</p>
+              <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Cookies observed: {securityTechnical.cookies.totalSetCookie}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Small files saved on visitors' devices</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.cookies.totalSetCookie}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Cookie flags · Secure {securityTechnical.cookies.secureRate}% · HttpOnly {securityTechnical.cookies.httpOnlyRate}% · SameSite {securityTechnical.cookies.sameSiteRate}%
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Protection on those files — HTTPS-only · Hidden from scripts · Blocked from other sites</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.cookies.secureRate}% · {securityTechnical.cookies.httpOnlyRate}% · {securityTechnical.cookies.sameSiteRate}%</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Unsafe new-tab links: {securityTechnical.linksAndForms.unsafeTargetBlankCount}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Links that could leak visitor sessions when opening a new tab</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.linksAndForms.unsafeTargetBlankCount}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Insecure HTTP links: {securityTechnical.linksAndForms.insecureLinkCount}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Links that send visitors to an unprotected connection</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.linksAndForms.insecureLinkCount}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Insecure HTTP form actions: {securityTechnical.linksAndForms.insecureFormActionCount}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Forms that send data without protection</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.linksAndForms.insecureFormActionCount}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Mixed-content assets: {securityTechnical.scriptSurface?.mixedContentCount ?? 0}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Mixed secure and insecure files on the same page</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.scriptSurface?.mixedContentCount ?? 0}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  External scripts each a supply-chain dependency — without SRI: {securityTechnical.scriptSurface?.scriptsWithoutSriCount ?? 0} of {securityTechnical.scriptSurface?.externalScriptCount ?? 0}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Files from other websites with no tamper protection</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.scriptSurface?.scriptsWithoutSriCount ?? 0} of {securityTechnical.scriptSurface?.externalScriptCount ?? 0}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Overly open cross-site access pages: {securityTechnical.cors?.riskyPageCount ?? 0}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages that allow any other website to read their data</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.cors?.riskyPageCount ?? 0}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Cache-policy risk pages: {securityTechnical.cachePolicy?.riskyPageCount ?? 0}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages that may store sensitive data in the browser cache</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.cachePolicy?.riskyPageCount ?? 0}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  Sign-in pages missing CSRF signal: {securityTechnical.authSurface?.passwordFlowMissingCsrfCount ?? 0}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Sign-in pages missing a hidden security check</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.authSurface?.passwordFlowMissingCsrfCount ?? 0}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  HSTS preload-ready pages: {securityTechnical.hsts?.preloadReadyCount ?? 0}
+                  <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages ready to enforce HTTPS permanently</dt>
+                  <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.hsts?.preloadReadyCount ?? 0}</dd>
                 </div>
-              </div>
+              </dl>
               {(securityTechnical.scriptSurface?.externalScriptHosts?.length ?? 0) > 0 ? (
                 <div className="mt-5">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">External script hosts (sample)</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Other websites loading files onto your site</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {securityTechnical.scriptSurface?.externalScriptHosts?.map(sectionChip)}
                   </div>
@@ -1055,18 +1102,19 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
           <ShellCard id="security-section-actions" className="p-8">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold text-white">Recommended security actions</h2>
-              <p className="text-sm text-white/52">Prioritized by risk to visitors</p>
+              <h2 className="text-2xl font-semibold text-white">What to fix to protect your visitors</h2>
+              <p className="text-sm text-white/52">Most urgent first</p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {securityTechnical.recommendations.map((recommendation) => (
-                <details key={recommendation.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <details key={recommendation.title} className="relative rounded-[24px] border border-white/10 bg-white/5 p-5">
+                  <SourceSnippetButton snippet={recommendation.sourceSnippet} />
                   <summary className="cursor-pointer list-none">
                     <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
                       {getSeverityLabel(recommendation.impact)}
                     </div>
                     <h3 className="mt-4 text-xl font-medium text-white">{recommendation.title}</h3>
-                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to view what to do</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Expand to see the fix</p>
                   </summary>
                   <p className="mt-4 text-sm leading-7 text-white/65">{recommendation.detail}</p>
                 </details>
@@ -1075,19 +1123,22 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           </ShellCard>
 
           <ShellCard id="security-section-crawl" className="p-8">
-            <h2 className="text-2xl font-semibold text-white">Crawl diagnostics</h2>
-            <p className="mt-2 text-sm text-white/52">How much of the site was reached during the scan</p>
-            <div className="mt-6 grid gap-3 md:grid-cols-3 text-sm text-white/75">
+            <h2 className="text-2xl font-semibold text-white">What the scan could and couldn't reach</h2>
+            <p className="mt-2 text-sm text-white/52">Some pages may have been skipped — here's why</p>
+            <dl className="mt-6 grid gap-3 md:grid-cols-3 text-sm">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                Robots blocked: {securityTechnical.crawlDiagnostics.blockedByRobots}
+                <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages your site told us not to check</dt>
+                <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.crawlDiagnostics.blockedByRobots}</dd>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                Page errors: {securityTechnical.crawlDiagnostics.pageErrors}
+                <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages that failed to load</dt>
+                <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.crawlDiagnostics.pageErrors}</dd>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                Security highlights tracked: {securityTechnical.pageHighlights.length}
+                <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">Pages we checked for safety issues</dt>
+                <dd className="mt-1 text-base font-medium text-white/80">{securityTechnical.pageHighlights.length}</dd>
               </div>
-            </div>
+            </dl>
             {securityTechnical.crawlDiagnostics.notes.length ? (
               <div className="mt-5 space-y-2">
                 {securityTechnical.crawlDiagnostics.notes.map((note) => (
@@ -1104,11 +1155,11 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           {report.bugsReliability ? (
             <>
               <ShellCard className="p-8">
-                <p className="text-sm uppercase tracking-[0.24em] text-white/45">Bugs & reliability summary</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-white/45">Reliability overview</p>
                 <h2 className="mt-4 text-2xl font-semibold text-white">{report.bugsReliability.summary}</h2>
                 {report.bugsReliability.bugCount === 0 ? (
                   <div className="mt-6 rounded-[22px] border border-[#7cf5d4]/25 bg-[#7cf5d4]/6 p-5 text-sm text-white/75">
-                    All scanned pages loaded successfully with no crawl errors detected.
+                    Great news — every page loaded without errors.
                   </div>
                 ) : (
                   <div className="mt-4 flex items-center gap-3">
@@ -1126,12 +1177,12 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
               {report.bugsReliability.bugs.length > 0 ? (
                 <ShellCard className="p-8">
                   <h2 className="text-2xl font-semibold text-white">Page issues</h2>
-                  <p className="mt-2 text-sm text-white/52">Problems found during the crawl that visitors may also encounter</p>
+                  <p className="mt-2 text-sm text-white/52">Things that could frustrate or confuse real visitors</p>
                   <div className="mt-6 grid gap-4 md:grid-cols-2">
                     {report.bugsReliability.bugs.map((bug, index) => (
                       <details
                         key={`${bug.page}-${index}`}
-                        className={`rounded-[24px] border bg-white/5 p-5 ${
+                        className={`relative rounded-[24px] border bg-white/5 p-5 ${
                           bug.severity === "high"
                             ? "border-l-4 border-[#ffb39f]/25 border-l-[#ffb39f]"
                             : bug.severity === "medium"
@@ -1139,6 +1190,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                               : "border-l-4 border-[#7cf5d4]/25 border-l-[#7cf5d4]"
                         }`}
                       >
+                        <SourceSnippetButton snippet={bug.sourceSnippet} />
                         <summary className="cursor-pointer list-none">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
@@ -1150,7 +1202,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                           </div>
                           <h3 className="mt-3 text-lg font-medium text-white">{bug.issue}</h3>
                           <p className="mt-1 truncate text-xs text-white/40">{bug.page}</p>
-                          <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Open to see details and fix</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/40">Expand for details and fix steps</p>
                         </summary>
                         <p className="mt-4 text-sm leading-7 text-white/65">{bug.detail}</p>
                         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -1165,9 +1217,9 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </>
           ) : (
             <ShellCard className="p-8">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/45">Bugs & reliability</p>
+              <p className="text-sm uppercase tracking-[0.24em] text-white/55">Page problems found</p>
               <p className="mt-4 text-sm leading-7 text-white/65">
-                Bug and reliability data is available for scans run with the latest analysis engine. Re-run your scan to see page-level issue detection.
+                Run a new scan to see a full list of page problems.
               </p>
             </ShellCard>
           )}

@@ -27,8 +27,8 @@ const config: Config = {
         mesh: "radial-gradient(ellipse 80% 50% at 65% -10%, rgba(80,55,200,0.14), transparent), radial-gradient(ellipse 50% 40% at 15% 55%, rgba(20,50,130,0.08), transparent)"
       },
       fontFamily: {
-        display: ["var(--font-inter)", "Segoe UI", "system-ui", "sans-serif"],
-        body: ["var(--font-inter)", "Segoe UI", "system-ui", "sans-serif"]
+        display: ["var(--font-sans)", "Segoe UI", "system-ui", "sans-serif"],
+        body: ["var(--font-sans)", "Segoe UI", "system-ui", "sans-serif"]
       },
       letterSpacing: {
         "tightest": "-0.05em",

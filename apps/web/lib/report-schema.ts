@@ -13,6 +13,7 @@ export type ReportFinding = {
   title: string;
   detail: string;
   severity: "high" | "medium" | "low";
+  sourceSnippet?: string;
 };
 export type PrioritizedAction = {
   title: string;
@@ -20,6 +21,7 @@ export type PrioritizedAction = {
   impact: "high" | "medium" | "low";
   effort: "low" | "medium" | "high";
   confidence: number;
+  sourceSnippet?: string;
 };
 export type ImplementationSnippet = {
   id: string;
@@ -109,6 +111,31 @@ export type ExtractedPageSource = {
       pagesWithComplexForms: number;
       trustWeakPages: number;
     };
+  };
+  serverInfo?: {
+    serverHeader?: string;
+    poweredByHeader?: string;
+    disclosesTechStack: boolean;
+  };
+  metaHealth?: {
+    hasOpenGraph: boolean;
+    hasTwitterCard: boolean;
+    hasCanonical: boolean;
+    robotsContent?: string;
+    hasUserScalableNo: boolean;
+  };
+  scriptIntel?: {
+    inlineEventHandlerCount: number;
+    trackingScripts: string[];
+    detectedLibraries: string[];
+    duplicateIdCount: number;
+  };
+  resourceOptimization?: {
+    imagesWithoutLazy: number;
+    imagesWithoutSrcset: number;
+    videoCount: number;
+    audioCount: number;
+    iframeCount: number;
   };
 };
 
@@ -218,6 +245,7 @@ export type SecurityTechnicalReport = {
     title: string;
     detail: string;
     impact: "high" | "medium" | "low";
+    sourceSnippet?: string;
   }>;
 };
 
@@ -228,6 +256,7 @@ export type BugEntry = {
   remediation: string;
   severity: "high" | "medium" | "low";
   confidence: "confirmed" | "likely" | "possible";
+  sourceSnippet?: string;
 };
 
 export type BugsReliabilityReport = {

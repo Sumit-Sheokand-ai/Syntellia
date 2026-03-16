@@ -1201,6 +1201,80 @@ async function extractSinglePage(url, options) {
   const highlightTerms = collectHighlightTerms([...headings, ...navLabels, ...buttonLabels]);
   const securityTechnical = assessSecurityTechnical($, url, fetched);
 
+  // ── Expanded scraping ──
+
+  // Server disclosure
+  const serverHeader = fetched.responseHeaders?.["server"];
+  const poweredByHeader = fetched.responseHeaders?.["x-powered-by"];
+  const serverInfo = {
+    serverHeader: serverHeader || undefined,
+    poweredByHeader: poweredByHeader || undefined,
+    disclosesTechStack: !!(/\d/.test(serverHeader ?? "") || poweredByHeader)
+  };
+
+  // Meta health
+  const viewportContent = $("meta[name='viewport']").attr("content") ?? "";
+  const metaHealth = {
+    hasOpenGraph: $("meta[property^='og:']").length > 0,
+    hasTwitterCard: $("meta[name^='twitter:']").length > 0,
+    hasCanonical: $("link[rel='canonical']").length > 0,
+    robotsContent: $("meta[name='robots']").attr("content") || undefined,
+    hasUserScalableNo: /user-scalable\s*=\s*no/i.test(viewportContent)
+  };
+
+  // Script intelligence
+  const INLINE_EVENT_ATTRS = ["onclick", "onload", "onerror", "onmouseover", "onsubmit", "onkeydown", "onchange"];
+  const inlineEventHandlerCount = INLINE_EVENT_ATTRS.reduce((sum, attr) => sum + $(`[${attr}]`).length, 0);
+  const firstInlineEventEl = $("[onclick],[onload],[onerror],[onsubmit]").first();
+  const firstInlineEventSnippet = firstInlineEventEl.length
+    ? ($("<div>").append(firstInlineEventEl.clone()).html() ?? "").replace(/\s+/g, " ").trim().slice(0, 280)
+    : undefined;
+
+  const TRACKING_PATTERNS = [
+    { name: "google-analytics", re: /googletagmanager\.com|google-analytics\.com|gtag\(/ },
+    { name: "facebook-pixel", re: /fbq\(|connect\.facebook\.net/ },
+    { name: "hotjar", re: /hotjar\.com|hjSetting/ },
+    { name: "intercom", re: /intercom\.io/ },
+    { name: "segment", re: /cdn\.segment\.com/ },
+    { name: "mixpanel", re: /mixpanel\.com/ },
+    { name: "clarity", re: /clarity\.ms/ }
+  ];
+  const scriptContent = $("script").map((_, el) => $(el).attr("src") || $(el).html() || "").get().join(" ");
+  const trackingScripts = TRACKING_PATTERNS.filter((t) => t.re.test(scriptContent)).map((t) => t.name);
+
+  const LIB_PATTERNS = [
+    { name: "jQuery", re: /jquery[.-]([\d.]+)(\.min)?\.js/i },
+    { name: "Bootstrap", re: /bootstrap[.-]([\d.]+)(\.min)?\.js/i }
+  ];
+  const allSrcs = $("script[src], link[href]").map((_, el) => $(el).attr("src") || $(el).attr("href") || "").get().join(" ");
+  const detectedLibraries = LIB_PATTERNS.flatMap((lib) => {
+    const m = allSrcs.match(lib.re);
+    return m ? [`${lib.name} ${m[1]}`] : [];
+  });
+
+  const allIds = $("[id]").map((_, el) => $(el).attr("id")).get();
+  const allIdSet = new Set(allIds);
+  const duplicateIds = allIds.filter((id, i) => allIds.indexOf(id) !== i);
+  const duplicateIdCount = allIds.length - allIdSet.size;
+
+  const scriptIntel = {
+    inlineEventHandlerCount,
+    firstInlineEventSnippet,
+    trackingScripts,
+    detectedLibraries,
+    duplicateIdCount,
+    duplicateIdSample: [...new Set(duplicateIds)].slice(0, 5)
+  };
+
+  // Resource optimization
+  const resourceOptimization = {
+    imagesWithoutLazy: $("img").filter((_, el) => $(el).attr("loading") !== "lazy").length,
+    imagesWithoutSrcset: $("img:not([srcset])").length,
+    videoCount: $("video").length,
+    audioCount: $("audio").length,
+    iframeCount: $("iframe").length
+  };
+
   const notes = [];
   if (fetched.modeFallback && fetched.fallbackReason) {
     notes.push(fetched.fallbackReason);
@@ -1254,7 +1328,11 @@ async function extractSinglePage(url, options) {
     counts,
     discoveredLinks: collectDiscoveredLinks($, fetched.finalUrl, options.rootOrigin),
     executionMode: fetched.executionMode,
-    modeFallback: Boolean(fetched.modeFallback)
+    modeFallback: Boolean(fetched.modeFallback),
+    serverInfo,
+    metaHealth,
+    scriptIntel,
+    resourceOptimization
   };
 }
 
@@ -1933,6 +2011,73 @@ function buildBugsReliability(scanData) {
     }
   }
 
+  // Bugs from expanded scraping checks
+  for (const page of scanData.pages) {
+    if (page.scriptIntel?.inlineEventHandlerCount > 3) {
+      bugs.push({
+        page: page.finalUrl,
+        issue: `Inline event handlers detected (${page.scriptIntel.inlineEventHandlerCount} found)`,
+        detail: `This page has ${page.scriptIntel.inlineEventHandlerCount} behaviour rules written directly inside the HTML rather than in a separate file. This makes it harder to protect visitors from malicious code injected into the page.`,
+        remediation: "Ask your developer to move these behaviour rules into a separate file instead of writing them directly inside the HTML. This also makes it easier to add stronger security settings.",
+        severity: "medium",
+        confidence: "confirmed",
+        sourceSnippet: page.scriptIntel.firstInlineEventSnippet
+      });
+    }
+
+    if (page.serverInfo?.disclosesTechStack) {
+      const disclosed = [
+        page.serverInfo.serverHeader ? `Server: ${page.serverInfo.serverHeader}` : null,
+        page.serverInfo.poweredByHeader ? `X-Powered-By: ${page.serverInfo.poweredByHeader}` : null
+      ].filter(Boolean).join(" | ");
+      bugs.push({
+        page: page.finalUrl,
+        issue: "Server software version disclosed in HTTP headers",
+        detail: `The server is advertising its software and version in response headers (${disclosed}). Attackers use this to quickly identify known vulnerabilities for the specific version without having to probe further.`,
+        remediation: "Ask your hosting provider or developer to hide the server software version from responses. This stops attackers from quickly identifying known weaknesses.",
+        severity: "medium",
+        confidence: "confirmed",
+        sourceSnippet: disclosed
+      });
+    }
+
+    if (page.scriptIntel?.duplicateIdCount > 0) {
+      const dupes = page.scriptIntel.duplicateIdSample?.join(", ") ?? "";
+      bugs.push({
+        page: page.finalUrl,
+        issue: `Duplicate HTML IDs found (${page.scriptIntel.duplicateIdCount} duplicate${page.scriptIntel.duplicateIdCount === 1 ? "" : "s"})`,
+        detail: `${page.scriptIntel.duplicateIdCount} HTML ID value${page.scriptIntel.duplicateIdCount === 1 ? " is" : "s are"} used more than once on this page${dupes ? ` (e.g. "${dupes}")` : ""}. The HTML specification requires IDs to be unique — duplicate IDs break JavaScript selectors, break accessibility tools, and cause unpredictable behaviour in anchor links and form labels.`,
+        remediation: "Audit the page HTML for duplicate id attributes and make each value unique. Shared styling should use class attributes instead.",
+        severity: "medium",
+        confidence: "confirmed",
+        sourceSnippet: dupes ? `Duplicate IDs: ${dupes}` : undefined
+      });
+    }
+
+    if (page.metaHealth?.hasUserScalableNo) {
+      bugs.push({
+        page: page.finalUrl,
+        issue: "Viewport prevents users from zooming (accessibility barrier)",
+        detail: `The viewport meta tag on this page sets user-scalable=no, which prevents visitors from being able to zoom in. This creates a significant accessibility barrier for users with low vision and violates WCAG 2.1 Success Criterion 1.4.4 (Resize Text).`,
+        remediation: "Remove user-scalable=no and maximum-scale=1 from the viewport meta tag. Modern responsive designs do not require locking zoom.",
+        severity: "medium",
+        confidence: "confirmed",
+        sourceSnippet: `<meta name="viewport" content="${page.metaHealth?.robotsContent ?? "user-scalable=no"}">`
+      });
+    }
+
+    if (page.metaHealth && !page.metaHealth.hasCanonical) {
+      bugs.push({
+        page: page.finalUrl,
+        issue: "Missing canonical URL tag",
+        detail: "This page has no 'preferred address' tag. Without it, search engines may treat slightly different versions of the same page as separate pages, which weakens your position in search results.",
+        remediation: "Ask your developer to add a 'preferred address' tag to each page so search engines know which version to show and rank.",
+        severity: "low",
+        confidence: "likely"
+      });
+    }
+  }
+
   const bugCount = bugs.length;
   let summary;
   if (bugCount === 0) {
@@ -1962,7 +2107,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
   if (highImpactMissing.length > 0) {
     actions.push({
       title: "Close the gaps that leave browsers unguarded",
-      detail: `${highImpactMissing.length} critical browser protection${highImpactMissing.length === 1 ? "" : "s"} ${highImpactMissing.length === 1 ? "is" : "are"} missing: ${highImpactMissing.slice(0, 3).map((e) => e.label).join(", ")}. Without these, browsers make unsafe assumptions about your content — increasing the risk of script injection, clickjacking, and data leakage for every visitor.`,
+      detail: `${highImpactMissing.length} important browser protection setting${highImpactMissing.length === 1 ? " is" : "s are"} missing: ${highImpactMissing.slice(0, 3).map((e) => e.label).join(", ")}. Without these, your visitors' browsers can't tell what is safe on your page — which makes it much easier for bad actors to steal data or take over the page.`,
       impact: "high"
     });
   }
@@ -1970,7 +2115,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
   if (aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount > 0) {
     actions.push({
       title: "Stop new-tab links from exposing visitor sessions",
-      detail: `${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount} link${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount === 1 ? "" : "s"} open in a new tab without the safety attributes that prevent the destination page from accessing your site's context. Add rel="noopener noreferrer" to all target="_blank" links.`,
+      detail: `${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount} link${aggregate.securityTechnical.linksAndForms.unsafeTargetBlankCount === 1 ? "" : "s"} open in a new tab without the right safety setting. When a link opens in a new tab without this protection, the page it opens can secretly read information from your site. Ask your developer to add a simple safety attribute to all links that open in a new tab.`,
       impact: "medium"
     });
   }
@@ -1994,7 +2139,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
   if (aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount > 0) {
     actions.push({
       title: "Guard against tampered third-party scripts",
-      detail: `${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount} external script${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount === 1 ? "" : "s"} load without integrity checks. If any of those third-party servers were compromised, malicious code could silently run on your site for every visitor. Add integrity and crossorigin attributes to external scripts.`,
+      detail: `${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount} file${aggregate.securityTechnical.scriptSurface.scriptsWithoutSriCount === 1 ? "" : "s"} from other websites load on your site without a tamper-protection fingerprint. If one of those outside services ever got hacked, harmful code could silently run on your site for every visitor. Ask your developer to add a safety fingerprint to each outside file.`,
       impact: "medium"
     });
   }
@@ -2002,7 +2147,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
   if (aggregate.securityTechnical.cors.riskyPageCount > 0) {
     actions.push({
       title: "Restrict which other sites can read your data",
-      detail: `${aggregate.securityTechnical.cors.riskyPageCount} page${aggregate.securityTechnical.cors.riskyPageCount === 1 ? "" : "s"} have overly open cross-origin access rules. This could allow other websites to silently request and read your content or API responses on behalf of visitors. Scope your Access-Control-Allow-Origin header to trusted domains only.`,
+      detail: `${aggregate.securityTechnical.cors.riskyPageCount} page${aggregate.securityTechnical.cors.riskyPageCount === 1 ? "" : "s"} allow any other website to silently read their data. This means a different website could ask your site for information on behalf of your visitors without them knowing. Ask your developer to limit this so only your own trusted addresses are allowed.`,
       impact: "medium"
     });
   }
@@ -2010,7 +2155,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
   if (aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount > 0) {
     actions.push({
       title: "Defend sign-in pages from cross-site request attacks",
-      detail: `${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount} sign-in page${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount === 1 ? "" : "s"} had no visible protection against cross-site request forgery. Without CSRF tokens, a malicious site could trick a logged-in visitor into performing unwanted actions on their account. Add CSRF token fields to all authentication forms.`,
+      detail: `${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount} sign-in page${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount === 1 ? "" : "s"} ${aggregate.securityTechnical.authSurface.passwordFlowMissingCsrfCount === 1 ? "is" : "are"} missing a hidden security check on the sign-in form. Without this, a malicious website could trick a logged-in visitor into doing things on their account without realising it. Ask your developer to add a hidden security field to all sign-in forms.`,
       impact: "high"
     });
   }
@@ -2023,7 +2168,7 @@ function buildSecurityRecommendations(aggregate, scanData) {
     ) {
       actions.push({
         title: "Reduce the risk of session theft via cookies",
-        detail: `Cookies are set without full security flags: ${aggregate.securityTechnical.cookies.secureRate}% are HTTPS-only, ${aggregate.securityTechnical.cookies.httpOnlyRate}% are hidden from JavaScript, ${aggregate.securityTechnical.cookies.sameSiteRate}% are protected from cross-site requests. Cookies without these flags can be stolen or misused, exposing visitor sessions. Set Secure, HttpOnly, and SameSite=Strict (or Lax) on all cookies that don't need cross-site access.`,
+        detail: `Small files are being saved on visitors' devices without full protection — ${aggregate.securityTechnical.cookies.secureRate}% use a secure connection, ${aggregate.securityTechnical.cookies.httpOnlyRate}% are hidden from scripts, and ${aggregate.securityTechnical.cookies.sameSiteRate}% are blocked from other sites. Without these protections, these files can be stolen — exposing visitor accounts. Ask your developer to set the security settings on all saved files.`,
         impact: "medium"
       });
     }
@@ -2114,10 +2259,10 @@ function buildFindings(input, aggregate, siteName, scanData) {
 }
 
 function buildExecutiveSummary(siteName, aggregate, scores, prioritizedActions) {
-  const clarityScore = scores.find((score) => score.label === "Message clarity")?.value ?? 0;
-  const trustScore = scores.find((score) => score.label === "Trust confidence")?.value ?? 0;
-  const actionScore = scores.find((score) => score.label === "Action readiness")?.value ?? 0;
-  const accessibilityScore = scores.find((score) => score.label === "Accessibility comfort")?.value ?? 0;
+  const clarityScore = scores.find((score) => score.label === "How clear your message is")?.value ?? 0;
+  const trustScore = scores.find((score) => score.label === "How trustworthy your site feels")?.value ?? 0;
+  const actionScore = scores.find((score) => score.label === "How easy it is to take action")?.value ?? 0;
+  const accessibilityScore = scores.find((score) => score.label === "How accessible your site is")?.value ?? 0;
 
   const highlights = [
     `Clarity score ${clarityScore}/100 with ${aggregate.counts.headings} headings across ${aggregate.pageCount} page${aggregate.pageCount === 1 ? "" : "s"}.`,
@@ -2327,29 +2472,29 @@ function buildReport(input, scanData) {
 
   const scores = [
     {
-      label: "Message clarity",
+      label: "How clear your message is",
       value: clarityScore,
       trend: `${aggregate.counts.headings} headings across ${aggregate.pageCount} pages`
     },
     {
-      label: "Trust confidence",
+      label: "How trustworthy your site feels",
       value: trustScore,
-      trend: `${aggregate.trustLinks.length} trust cues, contact coverage ${aggregate.trustSignals.hasContactDetailsRate}%`
+      trend: `${aggregate.trustLinks.length} trust cues, contact visibility ${aggregate.trustSignals.hasContactDetailsRate}%`
     },
     {
-      label: "Action readiness",
+      label: "How easy it is to take action",
       value: actionScore,
-      trend: `${aggregate.ctaLabels.length} CTA labels, ${aggregate.counts.forms} forms`
+      trend: `${aggregate.ctaLabels.length} buttons and links, ${aggregate.counts.forms} forms`
     },
     {
-      label: "Accessibility comfort",
+      label: "How accessible your site is",
       value: accessibilityScore,
-      trend: `Image labels ${aggregate.accessibility.altCoverage}%, form labels ${aggregate.accessibility.formLabelCoverage}%`
+      trend: `Image descriptions ${aggregate.accessibility.altCoverage}%, form labels ${aggregate.accessibility.formLabelCoverage}%`
     },
     {
-      label: "Security posture",
+      label: "How safe your site is",
       value: securityPostureScore,
-      trend: `${aggregate.securityTechnical.headers.missing.length} protection gaps flagged`
+      trend: `${aggregate.securityTechnical.headers.missing.length} protection gaps found`
     }
   ];
 
@@ -2530,7 +2675,18 @@ function buildReport(input, scanData) {
           pagesWithComplexForms: aggregate.conversionFriction.pagesWithComplexForms,
           trustWeakPages: aggregate.conversionFriction.trustWeakPages
         }
-      }
+      },
+      serverInfo: primaryPage.serverInfo,
+      metaHealth: primaryPage.metaHealth,
+      scriptIntel: primaryPage.scriptIntel
+        ? {
+          inlineEventHandlerCount: primaryPage.scriptIntel.inlineEventHandlerCount,
+          trackingScripts: primaryPage.scriptIntel.trackingScripts,
+          detectedLibraries: primaryPage.scriptIntel.detectedLibraries,
+          duplicateIdCount: primaryPage.scriptIntel.duplicateIdCount
+        }
+        : undefined,
+      resourceOptimization: primaryPage.resourceOptimization
     }
   };
 }

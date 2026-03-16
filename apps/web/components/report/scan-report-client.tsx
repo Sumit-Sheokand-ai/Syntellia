@@ -21,8 +21,8 @@ type ScanReportClientProps = {
 function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
   const progressCopy =
     scan.status === "Queued"
-      ? "The scan is queued and waiting to start."
-      : "The page is being fetched and analyzed now.";
+      ? "Your website is in the queue and will start shortly."
+      : "We're loading and checking your website right now.";
   const startedAtMs = Date.parse(scan.startedAt ?? scan.createdAt);
   const elapsedMinutes = Number.isFinite(startedAtMs)
     ? Math.max(0, Math.round((Date.now() - startedAtMs) / 60_000))
@@ -36,16 +36,16 @@ function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
       </div>
       <div className="grid gap-5 lg:grid-cols-[1.45fr,0.95fr]">
         <ShellCard className="p-8">
-          <p className="text-sm uppercase tracking-[0.3em] text-white/45">Scan in progress</p>
-          <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">Reviewing {scan.siteName}</h1>
+          <p className="text-sm uppercase tracking-[0.3em] text-white/45">Checking your website</p>
+          <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">Looking at {scan.siteName}</h1>
           <p className="mt-4 max-w-3xl text-base leading-8 text-white/68">
-            {progressCopy} Syntellia is collecting structure, trust cues, calls-to-action, readability, accessibility hints, and visible style tokens before building the customer-facing report.
+            {progressCopy} Syntellia is reading your pages, checking how clear and trustworthy they look, and preparing your plain-language report.
           </p>
           <div className="mt-8 grid gap-3 md:grid-cols-3">
             {[
-              "Fetching the page HTML",
-              "Scoring clarity, trust, and next-step signals",
-              "Building plain-language recommendations"
+              "Fetching page HTML and assets",
+              "Scoring clarity, trust, and conversion signals",
+              "Compiling plain-language recommendations"
             ].map((step, index) => (
               <div key={step} className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/76">
                 <div className="text-xs uppercase tracking-[0.24em] text-white/40">Step {index + 1}</div>
@@ -58,17 +58,17 @@ function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
           <p className="text-sm uppercase tracking-[0.3em] text-white/45">Current status</p>
           <div className="mt-6 space-y-3 text-sm text-white/72">
             <div className="rounded-2xl border border-[#7cf5d4]/25 bg-[#7cf5d4]/8 px-4 py-3" role="status" aria-live="polite">Status: {scan.status}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Analysis mode: Comprehensive</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Coverage target: up to {scan.pageLimit} pages</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Elapsed: ~{elapsedMinutes} min</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Estimated total: ~{estimatedTotalMinutes} min</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan type: Full check</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Checking up to {scan.pageLimit} pages</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Time so far: ~{elapsedMinutes} min</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Expected finish: ~{estimatedTotalMinutes} min total</div>
           </div>
-          <p className="mt-6 text-sm leading-7 text-white/58">This view refreshes automatically. The full summary will appear as soon as the page data is ready.</p>
+          <p className="mt-6 text-sm leading-7 text-white/58">This page updates on its own — your report will appear here the moment it's ready.</p>
         </ShellCard>
       </div>
 
       <ShellCard className="p-8">
-        <div className="text-sm uppercase tracking-[0.24em] text-white/45">Target page</div>
+        <div className="text-sm uppercase tracking-[0.24em] text-white/45">Website being checked</div>
         <div className="mt-4 text-lg text-white/86">{scan.url}</div>
         <div className="mt-3 text-xs text-white/52">Started: {formatDateTimeForLocale(scan.startedAt ?? scan.createdAt, locale)}</div>
       </ShellCard>
@@ -92,13 +92,13 @@ function ReScanLink({ url, projectName }: { url: string; projectName?: string })
 function FailureView({ scan }: { scan: ScanRecord }) {
   return (
     <ShellCard className="p-8">
-      <p className="text-sm uppercase tracking-[0.3em] text-[#ffb39f]">Scan failed</p>
-      <h1 className="mt-4 text-3xl font-semibold text-white">We could not finish this page review.</h1>
+      <p className="text-sm uppercase tracking-[0.3em] text-[#ffb39f]">We couldn't finish checking this page</p>
+      <h1 className="mt-4 text-3xl font-semibold text-white">Something stopped us from completing the check.</h1>
       <p className="mt-4 max-w-3xl text-base leading-8 text-white/68">
-        The scan reached the target URL but could not turn it into a usable report. This usually happens when the page blocks automated fetches or requires a live browser session.
+        We reached your page but couldn't read it properly. This usually happens when the page needs someone to log in first, or if it blocks outside visitors.
       </p>
       <div className="mt-8 rounded-[24px] border border-[#ffb39f]/20 bg-[#ffb39f]/8 p-5 text-sm leading-7 text-[#ffd3c8]">
-        {scan.error ?? "The page could not be fetched."}
+        {scan.error ?? "We couldn't load this page."}
       </div>
       <div className="mt-6">
         <ReScanLink url={scan.url} projectName={scan.projectName} />
