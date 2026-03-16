@@ -10,6 +10,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -72,16 +73,26 @@ export default function SignupPage() {
           className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
         />
         <label htmlFor="signup-password" className="sr-only">Password</label>
-        <input
-          id="signup-password"
-          type="password"
-          required
-          minLength={8}
-          placeholder="Password (at least 8 characters)"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35"
-        />
+        <div className="relative">
+          <input
+            id="signup-password"
+            type={showPassword ? "text" : "password"}
+            required
+            minLength={8}
+            placeholder="Password (at least 8 characters)"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder:text-white/35"
+          />
+          <button
+            type="button"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            onClick={() => setShowPassword((current) => !current)}
+            className="absolute inset-y-0 right-0 flex items-center px-4 text-white/65 hover:text-white"
+          >
+            {showPassword ? "🙈" : "👁️"}
+          </button>
+        </div>
         {error ? <p className="text-sm text-[#ffb39f]">{error}</p> : null}
         {message ? <p className="text-sm text-[#7cf5d4]">{message}</p> : null}
         <button type="submit" disabled={isPending} className="w-full rounded-full bg-white px-5 py-3 text-sm font-medium text-[#09101d] disabled:opacity-60">
