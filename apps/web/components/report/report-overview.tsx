@@ -39,6 +39,16 @@ function getImpactLabel(impact: "high" | "medium" | "low") {
   return "Low impact";
 }
 
+function getImpactStyle(impact: "high" | "medium" | "low") {
+  if (impact === "high") {
+    return "border-l-4 border-l-[#ffb39f]";
+  }
+  if (impact === "medium") {
+    return "border-l-4 border-l-[#ffd08a]";
+  }
+  return "border-l-4 border-l-[#7cf5d4]";
+}
+
 function createCssVarSegment(value: string, index: number) {
   const normalized = value
     .toLowerCase()
@@ -308,6 +318,12 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
   );
   const headingJumpCount = customerSignals?.structure?.headingJumpCount ?? 0;
   const complexForms = customerSignals?.forms?.complexForms ?? 0;
+  const conversionFriction = customerSignals?.conversionFriction ?? {
+    pagesWithoutClearCta: 0,
+    pagesWithLongCopy: 0,
+    pagesWithComplexForms: 0,
+    trustWeakPages: 0
+  };
   const implementationSnippets = useMemo(
     () => uiStyle.implementationSnippets?.length
       ? uiStyle.implementationSnippets
@@ -321,6 +337,15 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
   const uiScores = report.scores.filter((score) => score.label !== "Security posture");
   const securityScore = report.scores.find((score) => score.label === "Security posture");
+  const uiSections = [
+    { id: "report-section-executive", label: "Executive" },
+    { id: "report-section-roadmap", label: "Roadmap" },
+    { id: "report-section-scores", label: "Scores" },
+    { id: "report-section-matrix", label: "Impact matrix" },
+    { id: "report-section-signals", label: "Signals" },
+    { id: "report-section-visual", label: "Visual language" },
+    { id: "report-section-improvements", label: "Improvements" }
+  ];
 
   const trackCodePanelToggle = (snippetId: string, expanded: boolean) => {
     void trackAnalyticsEvent("report_code_panel_toggled", {
@@ -375,9 +400,8 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
           <div className="mt-6 space-y-3 text-sm text-white/72">
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Status: {scanMeta?.status ?? "Created"}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Project: {scanMeta?.projectName ?? "General"}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan size: {scanMeta?.scanSize ?? report.scope}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Pages reviewed: up to {scanMeta?.pageLimit ?? 1}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Login: {scanMeta?.loginMode ?? "No login needed"}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Analysis mode: Comprehensive</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Coverage target: up to {scanMeta?.pageLimit ?? 10} pages</div>
           </div>
         </ShellCard>
       </div>
@@ -419,7 +443,22 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
 
       {activeTab === "ui" ? (
         <div id="report-panel-ui" role="tabpanel" aria-labelledby="report-tab-ui" className="space-y-8">
-          <div className="grid gap-5 lg:grid-cols-[1.15fr,0.85fr]">
+          <ShellCard className="p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-[0.2em] text-white/45">Jump to</span>
+              {uiSections.map((section) => (
+                <a
+                  key={section.id}
+                  href={`#${section.id}`}
+                  className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-xs text-white/72 transition hover:bg-white/12"
+                >
+                  {section.label}
+                </a>
+              ))}
+            </div>
+          </ShellCard>
+
+          <div id="report-section-executive" className="grid gap-5 lg:grid-cols-[1.15fr,0.85fr]">
             <ShellCard className="p-8">
               <p className="text-sm uppercase tracking-[0.24em] text-white/45">Executive snapshot</p>
               <h2 className="mt-4 text-2xl font-semibold text-white">{executiveSummary.headline}</h2>
@@ -475,7 +514,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </ShellCard>
           </div>
 
-          <ShellCard className="p-8">
+          <ShellCard id="report-section-roadmap" className="p-8">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-white/45">What to do first</p>
@@ -507,7 +546,7 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             <p className="mt-4 text-base leading-8 text-white/72">{uiStyle.summary}</p>
           </ShellCard>
 
-          <ShellCard className="p-8">
+          <ShellCard id="report-section-scores" className="p-8">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-2xl font-semibold text-white">Design executive summary</h2>
               <p className="text-sm text-white/52">Clarity, trust, action, and accessibility at a glance</p>
@@ -529,7 +568,45 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </div>
           </ShellCard>
 
-          <ShellCard className="p-8">
+          <ShellCard id="report-section-matrix" className="p-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-semibold text-white">Impact matrix</h2>
+              <p className="text-sm text-white/52">Prioritize by business impact and delivery effort</p>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {[
+                {
+                  label: "High impact · Low effort",
+                  items: prioritizedActions.filter((action) => action.impact === "high" && action.effort === "low")
+                },
+                {
+                  label: "High impact · Higher effort",
+                  items: prioritizedActions.filter((action) => action.impact === "high" && action.effort !== "low")
+                },
+                {
+                  label: "Medium impact",
+                  items: prioritizedActions.filter((action) => action.impact === "medium")
+                },
+                {
+                  label: "Low impact / maintain",
+                  items: prioritizedActions.filter((action) => action.impact === "low")
+                }
+              ].map((bucket) => (
+                <div key={bucket.label} className="rounded-[22px] border border-white/10 bg-white/5 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">{bucket.label}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(bucket.items.length ? bucket.items : [{ title: "No actions in this segment yet" } as const]).slice(0, 4).map((item) => (
+                      <span key={item.title} className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-white/72">
+                        {item.title}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ShellCard>
+
+          <ShellCard id="report-section-signals" className="p-8">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-2xl font-semibold text-white">Trust and friction signals</h2>
               <p className="text-sm text-white/52">Customer reassurance + conversion drag</p>
@@ -562,11 +639,20 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   Complex forms: {complexForms}
                 </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Pages without clear CTA: {conversionFriction.pagesWithoutClearCta}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Pages with long copy friction: {conversionFriction.pagesWithLongCopy}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  Trust-weak pages: {conversionFriction.trustWeakPages}
+                </div>
               </div>
             </div>
           </ShellCard>
 
-          <div className="grid gap-5 lg:grid-cols-[1.2fr,0.8fr]">
+          <div id="report-section-visual" className="grid gap-5 lg:grid-cols-[1.2fr,0.8fr]">
             <ShellCard className="p-8">
               <h2 className="text-2xl font-semibold text-white">Visual language</h2>
               <div className="mt-6 space-y-5">
@@ -640,14 +726,14 @@ export function ReportOverview({ report, scanMeta }: ReportOverviewProps) {
             </ShellCard>
           </div>
 
-          <ShellCard className="p-8">
+          <ShellCard id="report-section-improvements" className="p-8">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-2xl font-semibold text-white">UI-first improvements</h2>
               <p className="text-sm text-white/52">Prioritized by customer-facing impact</p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {prioritizedActions.map((action) => (
-                <details key={action.title} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <details key={action.title} className={`rounded-[24px] border border-white/10 bg-white/5 p-5 ${getImpactStyle(action.impact)}`}>
                   <summary className="cursor-pointer list-none">
                     <div className="inline-flex rounded-full border border-white/15 bg-white/7 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
                       {getImpactLabel(action.impact)} · {action.effort} effort

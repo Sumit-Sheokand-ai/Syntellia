@@ -1,8 +1,8 @@
 export type CreateScanInput = {
   url: string;
-  scanSize: string;
-  loginMode: string;
-  focusArea: string;
+  scanSize?: string;
+  loginMode?: string;
+  focusArea?: string;
   scanPreset?: string;
   projectName?: string;
 };

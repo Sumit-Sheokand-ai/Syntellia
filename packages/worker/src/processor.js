@@ -1432,6 +1432,10 @@ function aggregatePages(scanData) {
   let testimonialSignalCount = 0;
   let faqSignalCount = 0;
   let policySignalCount = 0;
+  let pagesWithoutClearCta = 0;
+  let pagesWithLongCopy = 0;
+  let pagesWithComplexForms = 0;
+  let trustWeakPages = 0;
   let headingJumpCount = 0;
   let complexForms = 0;
   let paragraphCount = 0;
@@ -1499,6 +1503,10 @@ function aggregatePages(scanData) {
     testimonialSignalCount += page.trustSignals.hasTestimonials ? 1 : 0;
     faqSignalCount += page.trustSignals.hasFaq ? 1 : 0;
     policySignalCount += page.trustSignals.hasPolicyPages ? 1 : 0;
+    if (page.ctaLabels.length === 0) pagesWithoutClearCta += 1;
+    if (page.readability.longParagraphCount > 0) pagesWithLongCopy += 1;
+    if (page.formComplexity.complexForms > 0) pagesWithComplexForms += 1;
+    if (page.trustSignals.trustLinks.length < 2) trustWeakPages += 1;
 
     headingJumpCount += page.headingFlow.headingJumpCount;
     complexForms += page.formComplexity.complexForms;
@@ -1599,6 +1607,12 @@ function aggregatePages(scanData) {
     structure: {
       headingJumpCount,
       complexForms
+    },
+    conversionFriction: {
+      pagesWithoutClearCta,
+      pagesWithLongCopy,
+      pagesWithComplexForms,
+      trustWeakPages
     },
     securityTechnical: {
       transport: {
@@ -2271,6 +2285,12 @@ function buildReport(input, scanData) {
         },
         forms: {
           complexForms: aggregate.structure.complexForms
+        },
+        conversionFriction: {
+          pagesWithoutClearCta: aggregate.conversionFriction.pagesWithoutClearCta,
+          pagesWithLongCopy: aggregate.conversionFriction.pagesWithLongCopy,
+          pagesWithComplexForms: aggregate.conversionFriction.pagesWithComplexForms,
+          trustWeakPages: aggregate.conversionFriction.trustWeakPages
         }
       }
     }

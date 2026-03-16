@@ -103,6 +103,12 @@ export type ExtractedPageSource = {
     forms?: {
       complexForms: number;
     };
+    conversionFriction?: {
+      pagesWithoutClearCta: number;
+      pagesWithLongCopy: number;
+      pagesWithComplexForms: number;
+      trustWeakPages: number;
+    };
   };
 };
 

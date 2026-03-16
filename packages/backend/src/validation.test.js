@@ -10,7 +10,7 @@ test("validateCreateScanPayload applies defaults when optional fields are absent
   const payload = validateCreateScanPayload({ url: "https://example.com" });
 
   assert.equal(payload.url, "https://example.com/");
-  assert.equal(payload.scanSize, "Standard review");
+  assert.equal(payload.scanSize, "Full walkthrough");
   assert.equal(payload.loginMode, "No login needed");
   assert.equal(payload.focusArea, "Overall feel");
   assert.equal(payload.projectName, "General");

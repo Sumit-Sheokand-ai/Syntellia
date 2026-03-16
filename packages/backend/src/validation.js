@@ -180,7 +180,7 @@ function validateCreateScanPayload(payload) {
     scanSize: ensureAllowedOrDefault(
       payload.scanSize,
       ALLOWED_SCAN_SIZES,
-      "Standard review",
+      "Full walkthrough",
       "VALIDATION_SCAN_SIZE",
       "Scan size"
     ),

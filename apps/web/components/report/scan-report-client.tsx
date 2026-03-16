@@ -57,9 +57,8 @@ function ProgressView({ scan, locale }: { scan: ScanRecord; locale: string }) {
           <p className="text-sm uppercase tracking-[0.3em] text-white/45">Current status</p>
           <div className="mt-6 space-y-3 text-sm text-white/72">
             <div className="rounded-2xl border border-[#7cf5d4]/25 bg-[#7cf5d4]/8 px-4 py-3" role="status" aria-live="polite">Status: {scan.status}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Scan size: {scan.scanSize}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Main focus: {scan.focusArea}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Page limit: up to {scan.pageLimit}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Analysis mode: Comprehensive</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Coverage target: up to {scan.pageLimit} pages</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Elapsed: ~{elapsedMinutes} min</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Estimated total: ~{estimatedTotalMinutes} min</div>
           </div>
