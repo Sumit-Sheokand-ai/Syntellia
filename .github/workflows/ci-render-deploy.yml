@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build and Lint
+    name: Test, Build, and Lint
     runs-on: ubuntu-latest
 
     steps:
@@ -28,6 +28,8 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+      - name: Run test suites
+        run: npm run test
 
       - name: Lint
         run: npm run lint
@@ -98,3 +100,163 @@ jobs:
 
           echo "No Render deploy hook secrets configured; skipping hook trigger (auto-deploy can still handle deploys)."
           exit 0
+
+  verify-render-health:
+    name: Verify Render backend readiness
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-render
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Poll backend readiness endpoint
+        env:
+          BACKEND_HEALTHCHECK_URL: ${{ vars.BACKEND_HEALTHCHECK_URL }}
+          DEPLOY_HEALTHCHECK_MAX_ATTEMPTS: ${{ vars.DEPLOY_HEALTHCHECK_MAX_ATTEMPTS }}
+          DEPLOY_HEALTHCHECK_INTERVAL_SECONDS: ${{ vars.DEPLOY_HEALTHCHECK_INTERVAL_SECONDS }}
+          DEPLOY_HEALTHCHECK_CONSECUTIVE_SUCCESSES: ${{ vars.DEPLOY_HEALTHCHECK_CONSECUTIVE_SUCCESSES }}
+          BACKEND_METRICS_URL: ${{ vars.BACKEND_METRICS_URL }}
+          BACKEND_MAX_STATUS_5XX_PCT: ${{ vars.BACKEND_MAX_STATUS_5XX_PCT }}
+          BACKEND_MAX_P95_LATENCY_MS: ${{ vars.BACKEND_MAX_P95_LATENCY_MS }}
+          BACKEND_MAX_QUEUE_QUEUED: ${{ vars.BACKEND_MAX_QUEUE_QUEUED }}
+          BACKEND_METRICS_BEARER_TOKEN: ${{ secrets.BACKEND_METRICS_BEARER_TOKEN }}
+          SUPABASE_METRICS_AUTH_EMAIL: ${{ secrets.SUPABASE_METRICS_AUTH_EMAIL }}
+          SUPABASE_METRICS_AUTH_PASSWORD: ${{ secrets.SUPABASE_METRICS_AUTH_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          read_positive_int() {
+            local raw="$1"
+            local fallback="$2"
+            if [[ "$raw" =~ ^[0-9]+$ ]] && [ "$raw" -gt 0 ]; then
+              echo "$raw"
+              return
+            fi
+            echo "$fallback"
+          }
+          if [ -z "$BACKEND_HEALTHCHECK_URL" ]; then
+            echo "BACKEND_HEALTHCHECK_URL is not configured; skipping readiness verification."
+            exit 0
+          fi
+          max_attempts="$(read_positive_int "${DEPLOY_HEALTHCHECK_MAX_ATTEMPTS:-}" 36)"
+          interval_seconds="$(read_positive_int "${DEPLOY_HEALTHCHECK_INTERVAL_SECONDS:-}" 10)"
+          required_successes="$(read_positive_int "${DEPLOY_HEALTHCHECK_CONSECUTIVE_SUCCESSES:-}" 3)"
+          success_streak=0
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            body_file="$(mktemp)"
+            http_status="$(curl --silent --show-error --output "$body_file" --write-out "%{http_code}" --max-time 10 "$BACKEND_HEALTHCHECK_URL" || true)"
+
+            if [ "$http_status" = "200" ] && node -e "const fs=require('node:fs');const body=JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));if(body.ok!==true)process.exit(1);" "$body_file"; then
+              success_streak=$((success_streak + 1))
+              echo "Backend readiness quorum progress: $success_streak/$required_successes (attempt $attempt/$max_attempts)."
+            else
+              success_streak=0
+              echo "Backend readiness not healthy (attempt $attempt/$max_attempts, status=$http_status)."
+            fi
+
+            rm -f "$body_file"
+
+            if [ "$success_streak" -ge "$required_successes" ]; then
+              echo "Backend readiness quorum satisfied."
+              break
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "Retrying readiness check in ${interval_seconds}s..."
+              sleep "$interval_seconds"
+            fi
+          done
+          if [ "$success_streak" -lt "$required_successes" ]; then
+            echo "Backend readiness quorum failed after $max_attempts attempts."
+            exit 1
+          fi
+
+          if [ -z "$BACKEND_METRICS_URL" ]; then
+            echo "BACKEND_METRICS_URL is not configured; skipping ops metrics gating."
+            exit 0
+          fi
+          metrics_bearer_token="$BACKEND_METRICS_BEARER_TOKEN"
+
+          if [ -z "$metrics_bearer_token" ] && [ -n "$SUPABASE_METRICS_AUTH_EMAIL" ] && [ -n "$SUPABASE_METRICS_AUTH_PASSWORD" ]; then
+            if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+              echo "Supabase auth minting requested but VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing."
+              exit 1
+            fi
+
+            auth_file="$(mktemp)"
+            auth_status="$(curl --silent --show-error --output "$auth_file" --write-out "%{http_code}" --max-time 15 --header "apikey: $VITE_SUPABASE_ANON_KEY" --header "Content-Type: application/json" --data "{\"email\":\"$SUPABASE_METRICS_AUTH_EMAIL\",\"password\":\"$SUPABASE_METRICS_AUTH_PASSWORD\"}" "${VITE_SUPABASE_URL%/}/auth/v1/token?grant_type=password" || true)"
+            if [ "$auth_status" != "200" ]; then
+              echo "Failed to mint Supabase metrics token (status=$auth_status)."
+              rm -f "$auth_file"
+              exit 1
+            fi
+
+            metrics_bearer_token="$(node - "$auth_file" <<'NODE'
+            const fs = require("node:fs");
+            const authFile = process.argv[2];
+            const payload = JSON.parse(fs.readFileSync(authFile, "utf8"));
+            if (typeof payload?.access_token !== "string" || !payload.access_token) {
+              process.exit(1);
+            }
+            process.stdout.write(payload.access_token);
+            NODE
+            )" || {
+              echo "Supabase auth response did not include an access_token."
+              rm -f "$auth_file"
+              exit 1
+            }
+            rm -f "$auth_file"
+            echo "Using dynamically minted Supabase token for metrics verification."
+          fi
+
+          if [ -z "$metrics_bearer_token" ]; then
+            echo "BACKEND_METRICS_URL is configured but no metrics auth is available."
+            echo "Provide SUPABASE_METRICS_AUTH_EMAIL + SUPABASE_METRICS_AUTH_PASSWORD (recommended) or BACKEND_METRICS_BEARER_TOKEN (fallback)."
+            exit 1
+            exit 1
+          fi
+
+          metrics_file="$(mktemp)"
+          metrics_status="$(curl --silent --show-error --output "$metrics_file" --write-out "%{http_code}" --max-time 10 --header "Authorization: Bearer $metrics_bearer_token" "$BACKEND_METRICS_URL" || true)"
+          if [ "$metrics_status" != "200" ]; then
+            echo "Ops metrics request failed with status $metrics_status."
+            rm -f "$metrics_file"
+            exit 1
+          fi
+
+          node - "$metrics_file" "${BACKEND_MAX_STATUS_5XX_PCT:-5}" "${BACKEND_MAX_P95_LATENCY_MS:-5000}" "${BACKEND_MAX_QUEUE_QUEUED:-250}" <<'NODE'
+          const fs = require("node:fs");
+          const [metricsFile, max5xxRaw, maxP95Raw, maxQueuedRaw] = process.argv.slice(2);
+          const payload = JSON.parse(fs.readFileSync(metricsFile, "utf8"));
+          const max5xx = Number(max5xxRaw);
+          const maxP95 = Number(maxP95Raw);
+          const maxQueued = Number(maxQueuedRaw);
+
+          if (!payload || payload.ok !== true) {
+            console.error("Ops metrics payload indicates unhealthy response.");
+            process.exit(1);
+          }
+
+          const status5xxPct = Number(payload?.telemetry?.rates?.status5xxPct);
+          const p95LatencyMs = Number(payload?.telemetry?.latencyMs?.p95);
+          const queued = Number(payload?.queue?.queued);
+
+          if (!Number.isFinite(status5xxPct) || !Number.isFinite(p95LatencyMs) || !Number.isFinite(queued)) {
+            console.error("Ops metrics payload is missing required numeric fields.");
+            process.exit(1);
+          }
+
+          const violations = [];
+          if (status5xxPct > max5xx) violations.push(`status5xxPct=${status5xxPct} > ${max5xx}`);
+          if (p95LatencyMs > maxP95) violations.push(`latencyP95Ms=${p95LatencyMs} > ${maxP95}`);
+          if (queued > maxQueued) violations.push(`queueQueued=${queued} > ${maxQueued}`);
+
+          if (violations.length) {
+            console.error(`Ops metrics gate failed: ${violations.join("; ")}`);
+            process.exit(1);
+          }
+
+          console.log(
+            `Ops metrics gate passed: status5xxPct=${status5xxPct}, latencyP95Ms=${p95LatencyMs}, queueQueued=${queued}.`
+          );
+          NODE
+          rm -f "$metrics_file"

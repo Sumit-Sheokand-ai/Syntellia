@@ -2,8 +2,10 @@ import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type {
   CreateScanInput,
   EntitlementSummary,
+  HistoryStatusFilter,
   ScanListPage,
   ScanRecord,
+  SavedHistoryView,
   SharedScanRecord
 } from "@/lib/scan-types";
 
@@ -92,7 +94,7 @@ export async function getScanViaApi(scanId: string): Promise<ScanRecord> {
   return apiRequest<ScanRecord>(`/api/scans/${scanId}`);
 }
 type ListScansOptions = {
-  status?: "All" | "Queued" | "Running" | "Completed" | "Failed";
+  status?: HistoryStatusFilter;
   pageSize?: number;
   cursor?: string | null;
 };
@@ -108,6 +110,35 @@ function buildListScansQuery(options: ListScansOptions = {}) {
 
 export async function listScansViaApi(options: ListScansOptions = {}): Promise<ScanListPage> {
   return apiRequest<ScanListPage>(`/api/scans${buildListScansQuery(options)}`);
+}
+
+type SaveHistoryViewInput = {
+  name: string;
+  statusFilter: HistoryStatusFilter;
+  searchText: string;
+};
+
+export async function listSavedHistoryViewsViaApi(): Promise<SavedHistoryView[]> {
+  const response = await apiRequest<{ views: SavedHistoryView[] }>(`/api/history-views`);
+  return response.views;
+}
+
+export async function saveHistoryViewViaApi(
+  input: SaveHistoryViewInput
+): Promise<{ view: SavedHistoryView; views: SavedHistoryView[] }> {
+  return apiRequest<{ view: SavedHistoryView; views: SavedHistoryView[] }>(`/api/history-views`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function deleteHistoryViewViaApi(
+  viewId: string
+): Promise<{ views: SavedHistoryView[] }> {
+  const encodedViewId = encodeURIComponent(viewId);
+  return apiRequest<{ views: SavedHistoryView[] }>(`/api/history-views/${encodedViewId}`, {
+    method: "DELETE"
+  });
 }
 
 export async function createShareLinkViaApi(scanId: string): Promise<{ shareToken: string; sharePath: string; expiresAt?: string | null }> {

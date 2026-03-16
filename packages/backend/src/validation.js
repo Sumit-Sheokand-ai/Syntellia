@@ -24,6 +24,45 @@ function normalizeProjectName(value) {
 
   return normalized;
 }
+function normalizeSavedHistoryViewName(value) {
+  if (typeof value !== "string") {
+    throw new ValidationError("VALIDATION_HISTORY_VIEW_NAME_REQUIRED", "Saved view name is required.");
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new ValidationError("VALIDATION_HISTORY_VIEW_NAME_REQUIRED", "Saved view name is required.");
+  }
+  if (normalized.length > 64) {
+    throw new ValidationError(
+      "VALIDATION_HISTORY_VIEW_NAME",
+      "Saved view name must be 64 characters or fewer."
+    );
+  }
+
+  return normalized;
+}
+function normalizeSavedHistoryViewSearchText(value) {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (typeof value !== "string") {
+    throw new ValidationError(
+      "VALIDATION_HISTORY_VIEW_SEARCH_TEXT",
+      "Saved view search text must be text."
+    );
+  }
+
+  const normalized = value.trim();
+  if (normalized.length > 256) {
+    throw new ValidationError(
+      "VALIDATION_HISTORY_VIEW_SEARCH_TEXT",
+      "Saved view search text must be 256 characters or fewer."
+    );
+  }
+
+  return normalized;
+}
 
 const ALLOWED_SCAN_SIZES = new Set(["Quick check", "Standard review", "Full walkthrough"]);
 const ALLOWED_LOGIN_MODES = new Set(["No login needed", "This page has a login", "I'm not sure"]);
@@ -32,6 +71,13 @@ const ALLOWED_FOCUS_AREAS = new Set([
   "Look and brand",
   "Content clarity",
   "Navigation and actions"
+]);
+const ALLOWED_HISTORY_VIEW_STATUS_FILTERS = new Set([
+  "All",
+  "Queued",
+  "Running",
+  "Completed",
+  "Failed"
 ]);
 
 function isPrivateIpv4(ip) {
@@ -155,8 +201,26 @@ function validateCreateScanPayload(payload) {
     projectName: normalizeProjectName(payload.projectName)
   };
 }
+function validateSavedHistoryViewPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new ValidationError("INVALID_REQUEST", "Request payload must be an object.");
+  }
+
+  return {
+    name: normalizeSavedHistoryViewName(payload.name),
+    statusFilter: ensureAllowedOrDefault(
+      payload.statusFilter,
+      ALLOWED_HISTORY_VIEW_STATUS_FILTERS,
+      "All",
+      "VALIDATION_HISTORY_VIEW_STATUS_FILTER",
+      "Status filter"
+    ),
+    searchText: normalizeSavedHistoryViewSearchText(payload.searchText)
+  };
+}
 
 module.exports = {
   ValidationError,
-  validateCreateScanPayload
+  validateCreateScanPayload,
+  validateSavedHistoryViewPayload
 };

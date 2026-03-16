@@ -1,4 +1,4 @@
-const { randomBytes } = require("node:crypto");
+const { randomBytes, randomUUID } = require("node:crypto");
 const { createSupabaseUserClient, getSupabaseAdminClient } = require("./db");
 
 const sizeConfig = {
@@ -9,6 +9,14 @@ const sizeConfig = {
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 const SHARE_TOKEN_TTL_DAYS = Number.parseInt(process.env.SHARE_TOKEN_TTL_DAYS ?? "14", 10) || 14;
+const MAX_SAVED_HISTORY_VIEWS = 8;
+const ALLOWED_HISTORY_VIEW_STATUS_FILTERS = new Set([
+  "All",
+  "Queued",
+  "Running",
+  "Completed",
+  "Failed"
+]);
 
 function deriveSiteName(url) {
   try {
@@ -50,6 +58,19 @@ function mapRow(row) {
     report: row.report ?? null
   };
 }
+function mapSavedHistoryViewRow(row) {
+  const statusFilter = ALLOWED_HISTORY_VIEW_STATUS_FILTERS.has(row.status_filter)
+    ? row.status_filter
+    : "All";
+
+  return {
+    id: row.id,
+    name: row.name,
+    statusFilter,
+    searchText: row.search_text ?? "",
+    createdAt: row.created_at
+  };
+}
 
 function resolvePageSize(rawPageSize) {
   const parsed = Number.parseInt(rawPageSize ?? "", 10);
@@ -71,8 +92,33 @@ function computeShareTokenExpiry(now = new Date()) {
   return new Date(now.getTime() + SHARE_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 }
 
+async function trimSavedHistoryViews(supabase, userId) {
+  const { data: staleRows, error: staleError } = await supabase
+    .from("saved_history_views")
+    .select("id")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(MAX_SAVED_HISTORY_VIEWS, MAX_SAVED_HISTORY_VIEWS + 200);
+
+  if (staleError) throw new Error(`Unable to trim saved history views: ${staleError.message}`);
+
+  const staleIds = (staleRows ?? []).map((row) => row.id).filter(Boolean);
+  if (!staleIds.length) return;
+
+  const { error: deleteError } = await supabase
+    .from("saved_history_views")
+    .delete()
+    .eq("user_id", userId)
+    .in("id", staleIds);
+
+  if (deleteError) {
+    throw new Error(`Unable to remove stale saved history views: ${deleteError.message}`);
+  }
+}
+
 async function createScan(userId, accessToken, input) {
-  const id = `scan-${Math.random().toString(36).slice(2, 10)}`;
+  const id = `scan-${randomUUID()}`;
   const { pageLimit } = getSizeDetails(input.scanSize);
 
   const row = {
@@ -141,6 +187,94 @@ async function listScans(userId, accessToken, options = {}) {
   const items = (hasMore ? rows.slice(0, pageSize) : rows).map(mapRow);
   const nextCursor = hasMore ? rows[pageSize - 1].created_at : null;
   return { scans: items, nextCursor };
+}
+
+async function listSavedHistoryViews(userId, accessToken) {
+  const supabase = createSupabaseUserClient(accessToken);
+  const { data, error } = await supabase
+    .from("saved_history_views")
+    .select("id, name, status_filter, search_text, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(MAX_SAVED_HISTORY_VIEWS);
+
+  if (error) throw new Error(`Unable to list saved history views: ${error.message}`);
+
+  return (data ?? []).map(mapSavedHistoryViewRow);
+}
+
+async function saveSavedHistoryView(userId, accessToken, input) {
+  const supabase = createSupabaseUserClient(accessToken);
+  const now = new Date().toISOString();
+  const name = input.name.trim();
+  const statusFilter = ALLOWED_HISTORY_VIEW_STATUS_FILTERS.has(input.statusFilter)
+    ? input.statusFilter
+    : "All";
+  const searchText = typeof input.searchText === "string" ? input.searchText : "";
+
+  const { data: existing, error: readError } = await supabase
+    .from("saved_history_views")
+    .select("id")
+    .eq("user_id", userId)
+    .ilike("name", name)
+    .limit(1)
+    .maybeSingle();
+
+  if (readError) throw new Error(`Unable to load saved history view: ${readError.message}`);
+
+  let row;
+  if (existing?.id) {
+    const { data: updated, error: updateError } = await supabase
+      .from("saved_history_views")
+      .update({
+        name,
+        status_filter: statusFilter,
+        search_text: searchText,
+        updated_at: now
+      })
+      .eq("id", existing.id)
+      .eq("user_id", userId)
+      .select("id, name, status_filter, search_text, created_at, updated_at")
+      .single();
+
+    if (updateError) throw new Error(`Unable to update saved history view: ${updateError.message}`);
+    row = updated;
+  } else {
+    const { data: inserted, error: insertError } = await supabase
+      .from("saved_history_views")
+      .insert({
+        id: `view-${randomUUID()}`,
+        user_id: userId,
+        name,
+        status_filter: statusFilter,
+        search_text: searchText,
+        created_at: now,
+        updated_at: now
+      })
+      .select("id, name, status_filter, search_text, created_at, updated_at")
+      .single();
+
+    if (insertError) throw new Error(`Unable to create saved history view: ${insertError.message}`);
+    row = inserted;
+  }
+
+  await trimSavedHistoryViews(supabase, userId);
+  return mapSavedHistoryViewRow(row);
+}
+
+async function deleteSavedHistoryView(userId, accessToken, viewId) {
+  const supabase = createSupabaseUserClient(accessToken);
+  const { data, error } = await supabase
+    .from("saved_history_views")
+    .delete()
+    .eq("id", viewId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new Error(`Unable to delete saved history view: ${error.message}`);
+  return Boolean(data?.id);
 }
 
 function generateShareToken() {
@@ -245,6 +379,9 @@ module.exports = {
   createScan,
   getScan,
   listScans,
+  listSavedHistoryViews,
+  saveSavedHistoryView,
+  deleteSavedHistoryView,
   createOrGetShareToken,
   revokeShareToken,
   getSharedScanByToken

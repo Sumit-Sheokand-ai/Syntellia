@@ -8,6 +8,7 @@ export type CreateScanInput = {
 };
 
 export type ScanStatus = "Queued" | "Running" | "Completed" | "Failed";
+export type HistoryStatusFilter = "All" | ScanStatus;
 
 export type ScanRecord = {
   id: string;
@@ -34,6 +35,14 @@ export type SharedScanRecord = Omit<ScanRecord, "userId">;
 export type ScanListPage = {
   scans: ScanRecord[];
   nextCursor: string | null;
+};
+
+export type SavedHistoryView = {
+  id: string;
+  name: string;
+  statusFilter: HistoryStatusFilter;
+  searchText: string;
+  createdAt: string;
 };
 
 export type EntitlementSummary = {

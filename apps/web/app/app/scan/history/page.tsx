@@ -2,34 +2,42 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import { ShellCard } from "@/components/ui/shell-card";
-import { listScansViaApi, trackAnalyticsEvent } from "@/lib/scan-api-client";
-import type { ScanRecord, ScanStatus } from "@/lib/scan-types";
+import { formatDateTimeForLocale } from "@/lib/accessibility";
+import {
+  deleteHistoryViewViaApi,
+  listSavedHistoryViewsViaApi,
+  listScansViaApi,
+  saveHistoryViewViaApi,
+  trackAnalyticsEvent
+} from "@/lib/scan-api-client";
+import type { MessageKey } from "@/lib/i18n";
+import type {
+  HistoryStatusFilter,
+  SavedHistoryView,
+  ScanRecord,
+  ScanStatus
+} from "@/lib/scan-types";
 
-const statusFilters: Array<"All" | ScanStatus> = ["All", "Queued", "Running", "Completed", "Failed"];
-const SAVED_VIEWS_STORAGE_KEY = "syntellia.saved-history-views.v1";
+const statusFilters: Array<HistoryStatusFilter> = ["All", "Queued", "Running", "Completed", "Failed"];
+const statusLabelKeys: Record<HistoryStatusFilter, MessageKey> = {
+  All: "scan.status.all",
+  Queued: "scan.status.queued",
+  Running: "scan.status.running",
+  Completed: "scan.status.completed",
+  Failed: "scan.status.failed"
+};
+
 const LAST_VISIT_STORAGE_KEY = "syntellia.history.last-visit.v1";
 const REGRESSION_DROP_THRESHOLD = 8;
-
-type StatusFilter = "All" | ScanStatus;
-type SavedHistoryView = {
-  id: string;
-  name: string;
-  statusFilter: StatusFilter;
-  searchText: string;
-  createdAt: string;
-};
+type StatusFilter = HistoryStatusFilter;
 type HistoryAlertSummary = {
   completedSinceLastVisit: number;
   failedSinceLastVisit: number;
   regressionCount: number;
 };
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 function getStatusClasses(status: ScanStatus) {
   if (status === "Completed") return "border-[#7cf5d4]/25 bg-[#7cf5d4]/10 text-[#bbffe9]";
@@ -84,28 +92,6 @@ function countRegressions(scans: ScanRecord[]): number {
   return regressions;
 }
 
-function loadSavedViews(): SavedHistoryView[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(SAVED_VIEWS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is SavedHistoryView => {
-      if (!item || typeof item !== "object") return false;
-      const candidate = item as Partial<SavedHistoryView>;
-      return (
-        typeof candidate.id === "string" &&
-        typeof candidate.name === "string" &&
-        typeof candidate.searchText === "string" &&
-        typeof candidate.statusFilter === "string" &&
-        typeof candidate.createdAt === "string"
-      );
-    });
-  } catch {
-    return [];
-  }
-}
 
 function buildAlertSummary(scans: ScanRecord[], lastVisitValue: string | null): HistoryAlertSummary | null {
   const lastVisit = lastVisitValue ? Date.parse(lastVisitValue) : Number.NaN;
@@ -130,6 +116,7 @@ function buildAlertSummary(scans: ScanRecord[], lastVisitValue: string | null): 
 }
 
 export default function ScanHistoryPage() {
+  const { locale, t } = useI18n();
   const [scans, setScans] = useState<ScanRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -138,20 +125,36 @@ export default function ScanHistoryPage() {
   const [searchText, setSearchText] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedHistoryView[]>([]);
+  const [isLoadingSavedViews, setIsLoadingSavedViews] = useState(true);
+  const [isSavingView, setIsSavingView] = useState(false);
+  const [deletingViewId, setDeletingViewId] = useState<string | null>(null);
+  const [savedViewsError, setSavedViewsError] = useState<string | null>(null);
   const [newViewName, setNewViewName] = useState("");
   const [alerts, setAlerts] = useState<HistoryAlertSummary | null>(null);
-  const [hasHydratedSavedViews, setHasHydratedSavedViews] = useState(false);
 
   useEffect(() => {
-    setSavedViews(loadSavedViews());
-    setHasHydratedSavedViews(true);
-  }, []);
+    let isActive = true;
 
-  useEffect(() => {
-    if (!hasHydratedSavedViews) return;
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(SAVED_VIEWS_STORAGE_KEY, JSON.stringify(savedViews));
-  }, [hasHydratedSavedViews, savedViews]);
+    setIsLoadingSavedViews(true);
+    listSavedHistoryViewsViaApi()
+      .then((views) => {
+        if (!isActive) return;
+        setSavedViews(views);
+        setSavedViewsError(null);
+      })
+      .catch((savedError) => {
+        if (!isActive) return;
+        setSavedViewsError(savedError instanceof Error ? savedError.message : t("scan.history.error.load"));
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setIsLoadingSavedViews(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [t]);
 
   useEffect(() => {
     let isActive = true;
@@ -176,7 +179,7 @@ export default function ScanHistoryPage() {
       })
       .catch((scanError) => {
         if (!isActive) return;
-        setError(scanError instanceof Error ? scanError.message : "Unable to load scans.");
+        setError(scanError instanceof Error ? scanError.message : t("scan.history.error.load"));
       })
       .finally(() => {
         if (!isActive) return;
@@ -186,7 +189,7 @@ export default function ScanHistoryPage() {
     return () => {
       isActive = false;
     };
-  }, [statusFilter]);
+  }, [statusFilter, t]);
 
   const filteredScans = useMemo(() => {
     const text = searchText.trim().toLowerCase();
@@ -206,29 +209,33 @@ export default function ScanHistoryPage() {
     });
   }, [scans, searchText, statusFilter]);
 
-  const saveCurrentView = () => {
+  const saveCurrentView = async () => {
     const name = newViewName.trim();
-    if (!name) return;
+    if (!name || isSavingView) return;
 
-    const nextView: SavedHistoryView = {
-      id: `view-${Date.now()}`,
-      name,
-      statusFilter,
-      searchText,
-      createdAt: new Date().toISOString()
-    };
+    setIsSavingView(true);
+    setSavedViewsError(null);
 
-    setSavedViews((current) => {
-      const withoutSameName = current.filter((view) => view.name.toLowerCase() !== name.toLowerCase());
-      return [nextView, ...withoutSameName].slice(0, 8);
-    });
-    setNewViewName("");
+    try {
+      const result = await saveHistoryViewViaApi({
+        name,
+        statusFilter,
+        searchText
+      });
 
-    void trackAnalyticsEvent("history_view_saved", {
-      name,
-      statusFilter,
-      hasSearchText: Boolean(searchText.trim())
-    });
+      setSavedViews(result.views);
+      setNewViewName("");
+
+      void trackAnalyticsEvent("history_view_saved", {
+        name,
+        statusFilter,
+        hasSearchText: Boolean(searchText.trim())
+      });
+    } catch (savedError) {
+      setSavedViewsError(savedError instanceof Error ? savedError.message : t("scan.history.error.load"));
+    } finally {
+      setIsSavingView(false);
+    }
   };
 
   const applySavedView = (view: SavedHistoryView) => {
@@ -242,8 +249,20 @@ export default function ScanHistoryPage() {
     });
   };
 
-  const deleteSavedView = (viewId: string) => {
-    setSavedViews((current) => current.filter((view) => view.id !== viewId));
+  const deleteSavedView = async (viewId: string) => {
+    if (!viewId || deletingViewId) return;
+
+    setDeletingViewId(viewId);
+    setSavedViewsError(null);
+
+    try {
+      const result = await deleteHistoryViewViaApi(viewId);
+      setSavedViews(result.views);
+    } catch (savedError) {
+      setSavedViewsError(savedError instanceof Error ? savedError.message : t("scan.history.error.load"));
+    } finally {
+      setDeletingViewId(null);
+    }
   };
 
   const loadMore = async () => {
@@ -259,66 +278,75 @@ export default function ScanHistoryPage() {
       setScans((current) => [...current, ...result.scans]);
       setNextCursor(result.nextCursor);
     } catch (scanError) {
-      setError(scanError instanceof Error ? scanError.message : "Unable to load additional scans.");
+      setError(scanError instanceof Error ? scanError.message : t("scan.history.error.loadMore"));
     } finally {
       setIsLoadingMore(false);
     }
   };
 
   return (
-    <main className="space-y-6">
+    <main id="main-content" className="space-y-6">
       <ShellCard className="p-8">
-        <p className="text-sm uppercase tracking-[0.3em] text-white/45">Scan history</p>
-        <h2 className="mt-4 text-4xl font-semibold text-white">Track every scan in one place.</h2>
+        <p className="text-sm uppercase tracking-[0.3em] text-white/45">{t("scan.history.badge")}</p>
+        <h2 className="mt-4 text-4xl font-semibold text-white">{t("scan.history.title")}</h2>
         <p className="mt-4 max-w-3xl text-base leading-8 text-white/66">
-          Filter by status, search by site or URL, and open any record to review progress or final report output.
+          {t("scan.history.subtitle")}
         </p>
         <div className="mt-8 grid gap-4 md:grid-cols-[0.7fr,1fr]">
           <div className="space-y-2">
-            <label className="text-xs uppercase tracking-[0.24em] text-white/45">Status</label>
+            <label className="text-xs uppercase tracking-[0.24em] text-white/45">{t("scan.history.statusLabel")}</label>
             <select
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as "All" | ScanStatus)}
+              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
               className="w-full rounded-[18px] border border-white/12 bg-white/6 px-4 py-3 text-sm text-white"
             >
               {statusFilters.map((status) => (
                 <option key={status} value={status} className="bg-[#09101d] text-white">
-                  {status}
+                  {t(statusLabelKeys[status])}
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-xs uppercase tracking-[0.24em] text-white/45">Search</label>
+            <label className="text-xs uppercase tracking-[0.24em] text-white/45">{t("scan.history.searchLabel")}</label>
             <input
               type="text"
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search by site, URL, or focus area"
+              placeholder={t("scan.history.searchPlaceholder")}
               className="w-full rounded-[18px] border border-white/12 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-white/40"
             />
           </div>
         </div>
         <div className="mt-8 rounded-[22px] border border-white/10 bg-white/5 p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-white/45">Saved views</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-white/45">{t("scan.history.savedViewsTitle")}</p>
           <div className="mt-4 flex flex-col gap-3 md:flex-row">
             <input
               type="text"
               value={newViewName}
               onChange={(event) => setNewViewName(event.target.value)}
-              placeholder="Name this view (for example: completed this week)"
+              placeholder={t("scan.history.savedViewsPlaceholder")}
               className="w-full rounded-[16px] border border-white/12 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-white/40"
             />
             <button
               type="button"
               onClick={saveCurrentView}
-              disabled={!newViewName.trim()}
+              disabled={!newViewName.trim() || isSavingView}
               className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Save view
+              {t("scan.history.savedViews.save")}
             </button>
           </div>
-          {savedViews.length ? (
+          {savedViewsError ? (
+            <p className="mt-4 text-sm text-[#ffb39f]" role="alert" aria-live="assertive">
+              {savedViewsError}
+            </p>
+          ) : null}
+          {isLoadingSavedViews ? (
+            <p className="mt-4 text-sm text-white/58" role="status" aria-live="polite">
+              {t("scan.history.loading")}
+            </p>
+          ) : savedViews.length ? (
             <div className="mt-4 flex flex-wrap gap-3">
               {savedViews.map((view) => (
                 <div key={view.id} className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs text-white/82">
@@ -328,8 +356,9 @@ export default function ScanHistoryPage() {
                   <button
                     type="button"
                     onClick={() => deleteSavedView(view.id)}
+                    disabled={deletingViewId === view.id}
                     className="rounded-full border border-white/10 px-2 py-[1px] text-[10px] text-white/65 hover:text-white"
-                    aria-label={`Delete saved view ${view.name}`}
+                    aria-label={t("scan.history.savedViews.deleteAria", { name: view.name })}
                   >
                     ×
                   </button>
@@ -338,7 +367,7 @@ export default function ScanHistoryPage() {
             </div>
           ) : (
             <p className="mt-4 text-sm text-white/58">
-              Save your current filters to quickly return to important scan slices.
+              {t("scan.history.savedViews.empty")}
             </p>
           )}
         </div>
@@ -347,29 +376,29 @@ export default function ScanHistoryPage() {
       <ShellCard className="p-8">
         {alerts ? (
           <div className="mb-6 rounded-[22px] border border-[#6ca8ff]/20 bg-[#6ca8ff]/8 p-5">
-            <p className="text-xs uppercase tracking-[0.24em] text-[#c7deff]">Workflow alerts</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm text-white/85">
+            <p className="text-xs uppercase tracking-[0.24em] text-[#c7deff]">{t("scan.history.alerts.title")}</p>
+            <div className="mt-4 grid gap-3 text-sm text-white/85 md:grid-cols-3">
               <div className="rounded-2xl border border-white/12 bg-white/8 px-4 py-3">
-                Completed since last visit: {alerts.completedSinceLastVisit}
+                {t("scan.history.alerts.completed", { count: alerts.completedSinceLastVisit })}
               </div>
               <div className="rounded-2xl border border-white/12 bg-white/8 px-4 py-3">
-                Failed since last visit: {alerts.failedSinceLastVisit}
+                {t("scan.history.alerts.failed", { count: alerts.failedSinceLastVisit })}
               </div>
               <div className="rounded-2xl border border-white/12 bg-white/8 px-4 py-3">
-                Regressions detected: {alerts.regressionCount}
+                {t("scan.history.alerts.regressions", { count: alerts.regressionCount })}
               </div>
             </div>
           </div>
         ) : null}
         {isLoading ? (
-          <p className="text-sm text-white/62">Loading scan history...</p>
+          <p className="text-sm text-white/62" role="status" aria-live="polite">{t("scan.history.loading")}</p>
         ) : error ? (
-          <p className="text-sm text-[#ffb39f]">{error}</p>
+          <p className="text-sm text-[#ffb39f]" role="alert" aria-live="assertive">{error}</p>
         ) : filteredScans.length === 0 ? (
           <div className="space-y-4">
-            <p className="text-sm text-white/62">No scans match your filters yet.</p>
+            <p className="text-sm text-white/62">{t("scan.history.empty")}</p>
             <Link href="/app/scan/new" className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-medium text-[#09101d]">
-              Start a new scan
+              {t("scan.history.cta.startScan")}
             </Link>
           </div>
         ) : (
@@ -384,21 +413,26 @@ export default function ScanHistoryPage() {
                     <div className="flex flex-wrap items-center gap-3">
                       <p className="text-lg font-semibold text-white">{scan.siteName}</p>
                       <span className={`rounded-full border px-3 py-1 text-xs uppercase tracking-[0.16em] ${getStatusClasses(scan.status)}`}>
-                        {scan.status}
+                        {t(statusLabelKeys[scan.status])}
                       </span>
                     </div>
                     <p className="text-sm text-white/64">{scan.url}</p>
                     <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                      {scan.projectName} · {scan.scanSize} · {scan.focusArea} · up to {scan.pageLimit} pages
+                      {t("scan.history.row.meta", {
+                        projectName: scan.projectName,
+                        scanSize: scan.scanSize,
+                        focusArea: scan.focusArea,
+                        pageLimit: scan.pageLimit
+                      })}
                     </p>
-                    <p className="text-xs text-white/45">Created: {formatDate(scan.createdAt)}</p>
+                    <p className="text-xs text-white/45">{t("scan.history.row.created", { value: formatDateTimeForLocale(scan.createdAt, locale) })}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Link
                       href={`/app/scan/view?scanId=${scan.id}`}
                       className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm text-white transition hover:bg-white/12"
                     >
-                      Open
+                      {t("scan.history.cta.open")}
                     </Link>
                   </div>
                 </div>
@@ -412,7 +446,7 @@ export default function ScanHistoryPage() {
                   disabled={isLoadingMore}
                   className="rounded-full border border-white/12 bg-white/8 px-5 py-3 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isLoadingMore ? "Loading more..." : "Load more scans"}
+                  {isLoadingMore ? t("scan.history.cta.loadingMore") : t("scan.history.cta.loadMore")}
                 </button>
               </div>
             ) : null}

@@ -1,6 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ValidationError, validateCreateScanPayload } = require("./validation");
+const {
+  ValidationError,
+  validateCreateScanPayload,
+  validateSavedHistoryViewPayload
+} = require("./validation");
 
 test("validateCreateScanPayload applies defaults when optional fields are absent", () => {
   const payload = validateCreateScanPayload({ url: "https://example.com" });
@@ -58,5 +62,46 @@ test("validateCreateScanPayload rejects URLs with embedded credentials", () => {
         url: "https://user:pass@example.com"
       }),
     (error) => error instanceof ValidationError && error.code === "VALIDATION_URL_CREDENTIALS"
+  );
+});
+
+test("validateSavedHistoryViewPayload applies defaults for optional fields", () => {
+  const payload = validateSavedHistoryViewPayload({ name: "Completed this week" });
+
+  assert.equal(payload.name, "Completed this week");
+  assert.equal(payload.statusFilter, "All");
+  assert.equal(payload.searchText, "");
+});
+
+test("validateSavedHistoryViewPayload rejects missing names", () => {
+  assert.throws(
+    () => validateSavedHistoryViewPayload({ name: "   " }),
+    (error) => error instanceof ValidationError && error.code === "VALIDATION_HISTORY_VIEW_NAME_REQUIRED"
+  );
+});
+
+test("validateSavedHistoryViewPayload rejects unsupported status values", () => {
+  assert.throws(
+    () =>
+      validateSavedHistoryViewPayload({
+        name: "Critical scans",
+        statusFilter: "Done"
+      }),
+    (error) =>
+      error instanceof ValidationError &&
+      error.code === "VALIDATION_HISTORY_VIEW_STATUS_FILTER"
+  );
+});
+
+test("validateSavedHistoryViewPayload rejects overly long search text", () => {
+  assert.throws(
+    () =>
+      validateSavedHistoryViewPayload({
+        name: "My view",
+        searchText: "a".repeat(257)
+      }),
+    (error) =>
+      error instanceof ValidationError &&
+      error.code === "VALIDATION_HISTORY_VIEW_SEARCH_TEXT"
   );
 });
