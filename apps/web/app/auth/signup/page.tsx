@@ -90,7 +90,19 @@ export default function SignupPage() {
             onClick={() => setShowPassword((current) => !current)}
             className="absolute inset-y-0 right-0 flex items-center px-4 text-white/65 hover:text-white"
           >
-            {showPassword ? "🙈" : "👁️"}
+            {showPassword ? (
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M3 3L21 21" />
+                <path d="M10.5 6.8A10.3 10.3 0 0 1 12 6.7c5 0 8.4 4.1 9.5 5.6a1 1 0 0 1 0 1.3c-.8 1.1-2.7 3.4-5.4 4.7" />
+                <path d="M6.4 6.5A18.3 18.3 0 0 0 2.5 10.4a1 1 0 0 0 0 1.3C3.6 13.3 7 17.3 12 17.3c1.1 0 2.1-.2 3-.5" />
+                <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              </svg>
+            ) : (
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M2.5 12.3C3.6 10.8 7 6.7 12 6.7s8.4 4.1 9.5 5.6a1 1 0 0 1 0 1.3C20.4 15.2 17 19.3 12 19.3s-8.4-4.1-9.5-5.6a1 1 0 0 1 0-1.4Z" />
+                <circle cx="12" cy="13" r="3" />
+              </svg>
+            )}
           </button>
         </div>
         {error ? <p className="text-sm text-[#ffb39f]">{error}</p> : null}
