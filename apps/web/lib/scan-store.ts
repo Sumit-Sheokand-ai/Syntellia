@@ -150,6 +150,20 @@ const deriveSiteName = (url: string) => {
   }
 };
 
+const DEFAULT_SCAN_SETTINGS = {
+  scanSize: "Full walkthrough",
+  loginMode: "No login needed",
+  focusArea: "Overall feel"
+} as const;
+
+function resolveScanSettings(input: CreateScanInput) {
+  return {
+    scanSize: input.scanSize ?? DEFAULT_SCAN_SETTINGS.scanSize,
+    loginMode: input.loginMode ?? DEFAULT_SCAN_SETTINGS.loginMode,
+    focusArea: input.focusArea ?? DEFAULT_SCAN_SETTINGS.focusArea
+  };
+}
+
 const getSizeDetails = (scanSize: string) => sizeConfig[scanSize] ?? sizeConfig["Standard review"];
 const getFocusDetails = (focusArea: string) => focusConfig[focusArea] ?? focusConfig["Overall feel"];
 
@@ -169,13 +183,14 @@ const buildInteractions = (extracted: ExtractedPageData) => {
 };
 
 const buildFindings = (input: CreateScanInput, extracted: ExtractedPageData, siteName: string) => {
+  const settings = resolveScanSettings(input);
   const structureFinding = extracted.counts.headings > 0
     ? `${siteName} exposes ${extracted.counts.headings} heading${extracted.counts.headings === 1 ? "" : "s"} and ${extracted.counts.sections} section-level block${extracted.counts.sections === 1 ? "" : "s"}, which gives the report real page structure to work from.`
     : `${siteName} does not expose clear heading structure in the fetched HTML, so content hierarchy may be harder to read quickly.`;
 
   const actionFinding = extracted.counts.buttons + extracted.counts.forms > 0
-    ? `The fetched page includes ${extracted.counts.buttons} button${extracted.counts.buttons === 1 ? "" : "s"} and ${extracted.counts.forms} form${extracted.counts.forms === 1 ? "" : "s"}, which helps anchor the ${input.focusArea.toLowerCase()} review in real action points.`
-    : `The fetched page exposes very few obvious action controls, so the ${input.focusArea.toLowerCase()} review will lean more on structure and messaging than conversion paths.`;
+    ? `The fetched page includes ${extracted.counts.buttons} button${extracted.counts.buttons === 1 ? "" : "s"} and ${extracted.counts.forms} form${extracted.counts.forms === 1 ? "" : "s"}, which helps anchor the ${settings.focusArea.toLowerCase()} review in real action points.`
+    : `The fetched page exposes very few obvious action controls, so the ${settings.focusArea.toLowerCase()} review will lean more on structure and messaging than conversion paths.`;
 
   const styleFinding = extracted.colors.length || extracted.fonts.length
     ? `Visible style signals include ${extracted.colors.length} color token${extracted.colors.length === 1 ? "" : "s"} and ${extracted.fonts.length} font family reference${extracted.fonts.length === 1 ? "" : "ies"} pulled from accessible HTML and CSS.`
@@ -202,8 +217,9 @@ const buildFindings = (input: CreateScanInput, extracted: ExtractedPageData, sit
 
 const buildReport = (input: CreateScanInput, extracted: ExtractedPageData): ScanReport => {
   const siteName = deriveSiteName(input.url);
-  const sizeDetails = getSizeDetails(input.scanSize);
-  const focusDetails = getFocusDetails(input.focusArea);
+  const settings = resolveScanSettings(input);
+  const sizeDetails = getSizeDetails(settings.scanSize);
+  const focusDetails = getFocusDetails(settings.focusArea);
   const structureScore = scoreWithinRange(52 + extracted.counts.headings * 6 + extracted.counts.sections * 3 + extracted.counts.navs * 4);
   const actionScore = scoreWithinRange(48 + extracted.counts.buttons * 7 + extracted.counts.forms * 8 + Math.min(extracted.counts.links, 20));
   const styleScore = scoreWithinRange(44 + extracted.colors.length * 6 + extracted.fonts.length * 8 + extracted.components.length * 4);
@@ -212,7 +228,7 @@ const buildReport = (input: CreateScanInput, extracted: ExtractedPageData): Scan
     siteName,
     scannedAt: new Date().toISOString(),
     scope: sizeDetails.scope,
-    summary: `${siteName} was fetched successfully and the report now reflects real page signals from ${extracted.finalUrl}. We found ${extracted.counts.links} links, ${extracted.counts.buttons} buttons, ${extracted.counts.forms} forms, and ${extracted.counts.headings} headings, then shaped the review around ${input.focusArea.toLowerCase()}.`,
+    summary: `${siteName} was fetched successfully and the report now reflects real page signals from ${extracted.finalUrl}. We found ${extracted.counts.links} links, ${extracted.counts.buttons} buttons, ${extracted.counts.forms} forms, and ${extracted.counts.headings} headings, then shaped the review around ${settings.focusArea.toLowerCase()}.`,
     scores: [
       {
         label: "Page structure",
@@ -247,7 +263,7 @@ const buildReport = (input: CreateScanInput, extracted: ExtractedPageData): Scan
       },
       {
         label: "Review setup",
-        values: [sizeDetails.detail, input.loginMode, focusDetails.checks[0], `Up to ${sizeDetails.pageLimit} page${sizeDetails.pageLimit === 1 ? "" : "s"}`]
+        values: [sizeDetails.detail, settings.loginMode, focusDetails.checks[0], `Up to ${sizeDetails.pageLimit} page${sizeDetails.pageLimit === 1 ? "" : "s"}`]
       }
     ],
     findings: buildFindings(input, extracted, siteName),
@@ -349,16 +365,17 @@ async function processScan(userId: string, scanId: string) {
 
 export async function createScan(userId: string, input: CreateScanInput) {
   const id = `scan-${Math.random().toString(36).slice(2, 10)}`;
-  const sizeDetails = getSizeDetails(input.scanSize);
+  const settings = resolveScanSettings(input);
+  const sizeDetails = getSizeDetails(settings.scanSize);
 
   const record: ScanRecord = {
     id,
     userId,
     siteName: deriveSiteName(input.url),
     url: input.url,
-    scanSize: input.scanSize,
-    loginMode: input.loginMode,
-    focusArea: input.focusArea,
+    scanSize: settings.scanSize,
+    loginMode: settings.loginMode,
+    focusArea: settings.focusArea,
     projectName: input.projectName?.trim() || "General",
     pageLimit: sizeDetails.pageLimit,
     status: "Queued",
